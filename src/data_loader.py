@@ -67,6 +67,10 @@ def load_fact_inventory(limit: int | None = None) -> pd.DataFrame:
 def load_fact_reviews(limit: int | None = None) -> pd.DataFrame:
     return load_from_supabase("fact_reviews", limit=limit or 1000)
 
+def load_dim_category(limit: int | None = None) -> pd.DataFrame:
+    return load_from_supabase("dim_category", limit=limit or 500)
+
+
 # Wrapper cũ để tương thích ngược nếu cần (cho trang Overview cũ)
 def load_from_supabase_wrapper(table_name, url, key, schema="public", limit=1000):
     # Hàm này chỉ để tương thích với code cũ ở 01_Overview.py nếu nó vẫn gọi kiểu cũ

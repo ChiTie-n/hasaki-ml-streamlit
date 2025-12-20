@@ -8,13 +8,13 @@ import plotly.graph_objects as go
 import sys
 from pathlib import Path
 
-# Thêm thư mục gốc vào path
 sys.path.append(str(Path(__file__).parent.parent.parent))
 
 from src.data_loader import (
     load_dim_product,
     load_fact_prices,
     load_fact_inventory,
+    load_dim_category,
 )
 
 st.set_page_config(page_title="EDA", page_icon="📊", layout="wide")
@@ -22,7 +22,6 @@ st.set_page_config(page_title="EDA", page_icon="📊", layout="wide")
 st.title("📊 Exploratory Data Analysis")
 st.markdown("### 6 Phân Tích Chính")
 
-# ==================== LOAD DATA ====================
 @st.cache_data(ttl=3600)
 def load_and_prepare_data():
     """Load và prepare dữ liệu"""
@@ -30,6 +29,7 @@ def load_and_prepare_data():
         products = load_dim_product(limit=5000)
         prices = load_fact_prices(limit=10000)
         inventory = load_fact_inventory(limit=10000)
+        categories = load_dim_category(limit=500)
         
         # Aggregate prices
         price_agg = prices.groupby('product_id').agg({
@@ -38,17 +38,25 @@ def load_and_prepare_data():
             'bought': 'sum'
         }).reset_index()
         
-        # Aggregate inventory (stock_rate = 1 - stockout_rate)
+        # Aggregate inventory
         inv_agg = inventory.groupby('product_id').agg({
             'stock_available': 'mean',
             'total_branches': 'max'
         }).reset_index()
         inv_agg['stock_rate'] = inv_agg['stock_available'] / (inv_agg['total_branches'].replace(0, 1))
         
-        # Merge
+        # Merge all
         df = products[['product_id', 'product_name', 'brand_name', 'category_id']].copy()
         df = df.merge(price_agg, on='product_id', how='left')
         df = df.merge(inv_agg[['product_id', 'stock_rate']], on='product_id', how='left')
+        
+        # Join with category to get name
+        if 'category_name' in categories.columns:
+            df = df.merge(categories[['category_id', 'category_name']], on='category_id', how='left')
+            df['category'] = df['category_name'].fillna('Unknown')
+        else:
+            # Fallback: use first 8 chars of UUID
+            df['category'] = df['category_id'].astype(str).str[:8]
         
         # Fill NA
         df['final_price'] = df['final_price'].fillna(0)
@@ -65,8 +73,14 @@ except Exception as e:
     st.error(f"❌ Lỗi: {e}")
     st.stop()
 
-# Filter out zero values
-df_analysis = df[(df['final_price'] > 0) & (df['bought'] > 0)].copy()
+# Filter out zero values, Unknown category, and extreme outliers
+df_analysis = df[
+    (df['final_price'] > 0) & 
+    (df['final_price'] < 10_000_000) &  # Filter extreme prices (< 10M VNĐ)
+    (df['bought'] > 0) &
+    (df['category'] != 'Unknown')
+].copy()
+
 
 st.divider()
 
@@ -75,21 +89,33 @@ st.header("1️⃣ Boxplot Final Price theo Category")
 st.markdown("*Xác định category 'định giá cao/thấp' và outliers*")
 
 # Get top categories by product count
-top_categories = df_analysis['category_id'].value_counts().head(10).index.tolist()
-df_cat = df_analysis[df_analysis['category_id'].isin(top_categories)]
+top_categories = df_analysis['category'].value_counts().head(10).index.tolist()
+df_cat = df_analysis[df_analysis['category'].isin(top_categories)]
 
 fig1 = px.box(
     df_cat,
-    x='category_id',
+    x='category',
     y='final_price',
     title="Phân phối giá theo Category (Top 10 categories)",
-    labels={'category_id': 'Category', 'final_price': 'Final Price (VNĐ)'},
+    labels={'category': 'Category', 'final_price': 'Final Price (VNĐ)'},
     points='outliers'
 )
 fig1.update_layout(height=500, xaxis_tickangle=-45)
 st.plotly_chart(fig1, use_container_width=True)
 
+# Dynamic insights for Chart 1
+price_by_cat = df_cat.groupby('category')['final_price'].median().sort_values(ascending=False)
+highest_cat = price_by_cat.index[0]
+lowest_cat = price_by_cat.index[-1]
+st.info(f"""
+**📊 Insight:**
+- **Định giá cao nhất:** {highest_cat} (median: {price_by_cat[highest_cat]:,.0f}đ)
+- **Định giá thấp nhất:** {lowest_cat} (median: {price_by_cat[lowest_cat]:,.0f}đ)
+- Các chấm tròn phía trên là **outliers** (sản phẩm giá cao bất thường trong category)
+""")
+
 st.divider()
+
 
 # ==================== OUTPUT 2: Boxplot discount_percent theo category ====================
 st.header("2️⃣ Boxplot Discount Percent theo Category")  
@@ -97,14 +123,25 @@ st.markdown("*Category nào đang phụ thuộc khuyến mãi*")
 
 fig2 = px.box(
     df_cat[df_cat['discount_percent'] > 0],
-    x='category_id',
+    x='category',
     y='discount_percent',
     title="Phân phối Discount theo Category (Top 10 categories)",
-    labels={'category_id': 'Category', 'discount_percent': 'Discount (%)'},
+    labels={'category': 'Category', 'discount_percent': 'Discount (%)'},
     points='outliers'
 )
 fig2.update_layout(height=500, xaxis_tickangle=-45)
 st.plotly_chart(fig2, use_container_width=True)
+
+# Dynamic insights for Chart 2
+disc_by_cat = df_cat[df_cat['discount_percent'] > 0].groupby('category')['discount_percent'].median().sort_values(ascending=False)
+if len(disc_by_cat) > 0:
+    high_disc_cat = disc_by_cat.index[0]
+    st.info(f"""
+**📊 Insight:**
+- **Phụ thuộc KM nhiều nhất:** {high_disc_cat} (median discount: {disc_by_cat[high_disc_cat]:.1f}%)
+- Category có box càng cao = càng phụ thuộc vào khuyến mãi để bán hàng
+- **Khuyến nghị:** Xem xét giảm discount dần cho các category có median > 30%
+""")
 
 st.divider()
 
@@ -133,13 +170,22 @@ with col2:
         df_cat,
         x='discount_percent',
         y='bought',
-        color='category_id',
+        color='category',
         title="Theo Top Categories",
         labels={'discount_percent': 'Discount (%)', 'bought': 'Bought'},
         opacity=0.7
     )
     fig3b.update_layout(height=400)
     st.plotly_chart(fig3b, use_container_width=True)
+
+# Insight for Chart 3
+corr_disc_bought = df_analysis['discount_percent'].corr(df_analysis['bought'])
+if corr_disc_bought > 0.1:
+    st.success(f"**📊 Insight:** Tương quan dương ({corr_disc_bought:.2f}) → Giảm giá **có** giúp tăng sales")
+elif corr_disc_bought < -0.1:
+    st.warning(f"**📊 Insight:** Tương quan âm ({corr_disc_bought:.2f}) → Giảm giá **không** hiệu quả")
+else:
+    st.info(f"**📊 Insight:** Tương quan yếu ({corr_disc_bought:.2f}) → Discount có tác động **không rõ ràng** lên sales")
 
 st.divider()
 
@@ -151,7 +197,7 @@ fig4 = px.scatter(
     df_analysis,
     x='final_price',
     y='bought',
-    color='category_id',
+    color='category',
     hover_data=['product_name', 'brand_name', 'discount_percent'],
     title="Mối quan hệ Giá - Doanh số",
     labels={'final_price': 'Final Price (VNĐ)', 'bought': 'Bought'},
@@ -159,6 +205,13 @@ fig4 = px.scatter(
 )
 fig4.update_layout(height=500)
 st.plotly_chart(fig4, use_container_width=True)
+
+# Insight for Chart 4
+corr_price_bought = df_analysis['final_price'].corr(df_analysis['bought'])
+if corr_price_bought < -0.1:
+    st.info(f"**📊 Insight:** Tương quan âm ({corr_price_bought:.2f}) → Sản phẩm giá cao **bán ít hơn** (bình thường)")
+else:
+    st.success(f"**📊 Insight:** Tương quan ({corr_price_bought:.2f}) → Giá cao vẫn bán được! Có thể định vị **premium**")
 
 st.divider()
 
@@ -172,7 +225,7 @@ fig5 = px.scatter(
     df_stock,
     x='stock_rate',
     y='bought',
-    color='category_id',
+    color='category',
     hover_data=['product_name', 'brand_name'],
     title="Mối quan hệ Tồn kho - Doanh số",
     labels={'stock_rate': 'Stock Rate (tỷ lệ có hàng)', 'bought': 'Bought'},
@@ -181,7 +234,19 @@ fig5 = px.scatter(
 fig5.update_layout(height=500)
 st.plotly_chart(fig5, use_container_width=True)
 
+# Insight for Chart 5
+corr_stock_bought = df_stock['stock_rate'].corr(df_stock['bought'])
+low_stock_count = len(df_stock[df_stock['stock_rate'] < 0.3])
+if corr_stock_bought > 0.1:
+    st.warning(f"""
+**📊 Insight:** Tương quan dương ({corr_stock_bought:.2f}) → Stock rate thấp = Bought thấp
+- **{low_stock_count} sản phẩm** có stock_rate < 30% → Có thể đang mất doanh số vì thiếu hàng!
+""")
+else:
+    st.info(f"**📊 Insight:** Tương quan ({corr_stock_bought:.2f}) → Stock không phải bottleneck chính")
+
 st.divider()
+
 
 # ==================== OUTPUT 6: Bảng 3 nhóm sản phẩm ====================
 st.header("6️⃣ Phân Nhóm Sản Phẩm Chiến Lược (Top 20 mỗi nhóm)")
@@ -191,7 +256,7 @@ st.subheader("🔥 Nhóm A: Bán chạy + Discount thấp → **Ứng viên TĂN
 group_a = df_analysis[
     (df_analysis['bought'] > df_analysis['bought'].quantile(0.7)) &
     (df_analysis['discount_percent'] < df_analysis['discount_percent'].quantile(0.3))
-].nlargest(20, 'bought')[['product_name', 'brand_name', 'category_id', 'bought', 'discount_percent', 'final_price']]
+].nlargest(20, 'bought')[['product_name', 'brand_name', 'category', 'bought', 'discount_percent', 'final_price']]
 
 st.dataframe(group_a, use_container_width=True, hide_index=True)
 st.caption(f"💡 **Insight:** {len(group_a)} sản phẩm bán chạy mà không cần giảm giá nhiều → Có thể test tăng giá nhẹ")
@@ -203,7 +268,7 @@ st.subheader("⚠️ Nhóm B: Discount cao + Bought thấp → **Ứng viên C�
 group_b = df_analysis[
     (df_analysis['discount_percent'] > df_analysis['discount_percent'].quantile(0.7)) &
     (df_analysis['bought'] < df_analysis['bought'].quantile(0.3))
-].nlargest(20, 'discount_percent')[['product_name', 'brand_name', 'category_id', 'bought', 'discount_percent', 'final_price']]
+].nlargest(20, 'discount_percent')[['product_name', 'brand_name', 'category', 'bought', 'discount_percent', 'final_price']]
 
 st.dataframe(group_b, use_container_width=True, hide_index=True)
 st.caption(f"💡 **Insight:** {len(group_b)} sản phẩm giảm giá nhiều nhưng vẫn không bán → Cần đổi chiến lược marketing hoặc ngừng khuyến mãi")
@@ -215,7 +280,7 @@ st.subheader("📦 Nhóm C: Bán chạy + Stock thấp → **Ứng viên ƯU TI�
 group_c = df_analysis[
     (df_analysis['bought'] > df_analysis['bought'].quantile(0.7)) &
     (df_analysis['stock_rate'] < df_analysis['stock_rate'].quantile(0.3))
-].nlargest(20, 'bought')[['product_name', 'brand_name', 'category_id', 'bought', 'stock_rate', 'final_price']]
+].nlargest(20, 'bought')[['product_name', 'brand_name', 'category', 'bought', 'stock_rate', 'final_price']]
 
 st.dataframe(group_c, use_container_width=True, hide_index=True)
 st.caption(f"💡 **Insight:** {len(group_c)} sản phẩm bán chạy nhưng tồn kho thấp → Cần restock trước khi chạy promotion để tận dụng tối đa")
