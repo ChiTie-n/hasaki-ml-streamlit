@@ -66,11 +66,13 @@ except Exception as e:
     st.stop()
 
 
-tab1, tab2, tab3, tab4 = st.tabs([
+tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
     "📊 K-Means Clustering", 
     "💰 Discount-Demand Segmentation",
     "💬 Sentiment (Rule-Based)", 
-    "🤖 Sentiment (ML Model)"
+    "🤖 Sentiment (ML Model)",
+    "🎯 Decision Dashboard",
+    "🔮 Price Simulator (ML)"
 ])
 
 # TAB 1: K-MEANS CLUSTERING
@@ -982,5 +984,578 @@ with tab4:
 st.divider()
 st.success("✅ Phân tích hoàn tất! Sử dụng insights để tối ưu chiến lược giá.")
 
-
+# TAB 5: DECISION DASHBOARD
+with tab5:
+    st.header("🎯 Decision Dashboard")
+    st.markdown("""
+    *Tổng hợp signals từ tất cả modules để đưa ra quyết định giá cuối cùng.*
+    """)
     
+    st.divider()
+    
+    # Run all analyses
+    if st.button("🔄 Chạy Phân Tích Tổng Hợp", type="primary", use_container_width=True):
+        with st.spinner("Đang phân tích..."):
+            
+            # 1. Get feature data
+            df_products = df_feat.copy()
+            
+            # 2. K-Means signals
+            st.info("📊 Đang chạy K-Means...")
+            from sklearn.preprocessing import StandardScaler
+            from sklearn.cluster import KMeans
+            
+            feature_cols_km = ['avg_final_price', 'avg_discount_percent', 'avg_bought', 
+                              'rating_mean', 'stockout_rate']
+            available_cols = [c for c in feature_cols_km if c in df_products.columns]
+            
+            X_km = df_products[available_cols].fillna(0).values
+            scaler = StandardScaler()
+            X_scaled = scaler.fit_transform(X_km)
+            
+            kmeans = KMeans(n_clusters=4, random_state=42, n_init=10)
+            df_products['km_cluster'] = kmeans.fit_predict(X_scaled)
+            
+            # Assign K-Means signal based on cluster profile
+            overall_price = df_products['avg_final_price'].mean()
+            overall_bought = df_products['avg_bought'].mean()
+            overall_discount = df_products['avg_discount_percent'].mean()
+            
+            def get_kmeans_signal(row):
+                if row['stockout_rate'] > 0.3:
+                    return 0  # RESTOCK (neutral for pricing)
+                elif row['avg_bought'] > overall_bought * 1.2 and row['avg_discount_percent'] < overall_discount:
+                    return 2  # INCREASE PRICE
+                elif row['avg_discount_percent'] > overall_discount * 1.2 and row['avg_bought'] < overall_bought * 0.8:
+                    return -1  # REDUCE DISCOUNT / REVIEW
+                elif row['avg_final_price'] > overall_price * 1.3 and row['avg_bought'] > overall_bought:
+                    return 1  # PREMIUM - can increase
+                else:
+                    return 0  # HOLD
+            
+            df_products['km_signal'] = df_products.apply(get_kmeans_signal, axis=1)
+            
+            # 3. Discount-Demand Segmentation signals
+            st.info("💰 Đang phân loại Discount-Demand...")
+            discount_median = df_products['avg_discount_percent'].median()
+            bought_median = df_products['avg_bought'].median()
+            
+            def get_dd_signal(row):
+                if row['avg_discount_percent'] < discount_median and row['avg_bought'] > bought_median:
+                    return 2  # Pricing Power → can increase
+                elif row['avg_discount_percent'] > discount_median and row['avg_bought'] > bought_median:
+                    return 0  # Price Sensitive → hold
+                elif row['avg_discount_percent'] > discount_median and row['avg_bought'] < bought_median:
+                    return -1  # Discount Ineffective → reduce/review
+                else:
+                    return 0  # Low Performer → hold
+            
+            df_products['dd_signal'] = df_products.apply(get_dd_signal, axis=1)
+            
+            # 4. Rule-based Sentiment signals
+            st.info("💬 Đang phân tích sentiment (Rule-Based)...")
+            if 'product_id' in reviews_raw.columns and 'review_content' in reviews_raw.columns:
+                reviews_sent = reviews_raw.copy()
+                reviews_sent['clean_text'] = reviews_sent['review_content'].fillna('').apply(clean_review_text)
+                reviews_sent['rule_sentiment'] = reviews_sent['clean_text'].apply(
+                    lambda x: classify_price_sentiment_rule_based(x)
+                )
+                
+                # Aggregate per product
+                rule_agg = reviews_sent.groupby('product_id').apply(
+                    lambda x: pd.Series({
+                        'rule_pos': (x['rule_sentiment'] == 'Positive').sum(),
+                        'rule_neg': (x['rule_sentiment'] == 'Negative').sum(),
+                        'rule_total': len(x[x['rule_sentiment'].isin(['Positive', 'Negative'])])
+                    })
+                ).reset_index()
+                
+                rule_agg['rule_pos_ratio'] = rule_agg['rule_pos'] / rule_agg['rule_total'].replace(0, 1)
+                rule_agg['rule_neg_ratio'] = rule_agg['rule_neg'] / rule_agg['rule_total'].replace(0, 1)
+                
+                df_products = df_products.merge(rule_agg[['product_id', 'rule_pos_ratio', 'rule_neg_ratio']], 
+                                                on='product_id', how='left')
+                df_products['rule_pos_ratio'] = df_products['rule_pos_ratio'].fillna(0.5)
+                df_products['rule_neg_ratio'] = df_products['rule_neg_ratio'].fillna(0.5)
+                
+                def get_rule_signal(row):
+                    if row['rule_pos_ratio'] > 0.6:
+                        return 1  # Positive → can increase
+                    elif row['rule_neg_ratio'] > 0.5:
+                        return -1  # Negative → should decrease
+                    return 0
+                
+                df_products['rule_signal'] = df_products.apply(get_rule_signal, axis=1)
+            else:
+                df_products['rule_signal'] = 0
+            
+            # 5. Compute final score
+            st.info("🎯 Đang tính điểm tổng hợp...")
+            df_products['total_score'] = (
+                df_products['km_signal'] * 2 +  # K-Means weight: 2
+                df_products['dd_signal'] * 1.5 +  # Discount-Demand weight: 1.5
+                df_products['rule_signal'] * 1.5  # Sentiment weight: 1.5
+            )
+            
+            # 6. Generate final recommendation
+            def get_final_recommendation(score):
+                if score >= 3:
+                    return "🟢 TĂNG GIÁ"
+                elif score >= 1.5:
+                    return "🟡 CÓ THỂ TĂNG NHẸ"
+                elif score <= -2:
+                    return "🔴 GIẢM GIÁ"
+                elif score <= -0.5:
+                    return "🟠 XEM XÉT GIẢM"
+                else:
+                    return "⚪ GIỮ GIÁ"
+            
+            df_products['recommendation'] = df_products['total_score'].apply(get_final_recommendation)
+            
+            # Calculate confidence
+            def get_confidence(row):
+                signals = [row['km_signal'], row['dd_signal'], row.get('rule_signal', 0)]
+                # Count how many signals agree on direction
+                pos_count = sum(1 for s in signals if s > 0)
+                neg_count = sum(1 for s in signals if s < 0)
+                max_agree = max(pos_count, neg_count)
+                return "HIGH" if max_agree >= 2 else "MEDIUM" if max_agree == 1 else "LOW"
+            
+            df_products['confidence'] = df_products.apply(get_confidence, axis=1)
+            
+            st.success("✅ Phân tích hoàn tất!")
+            
+            # Store in session
+            st.session_state['decision_df'] = df_products
+    
+    # Display results
+    if 'decision_df' in st.session_state:
+        df_decision = st.session_state['decision_df']
+        
+        st.divider()
+        
+        # Summary metrics
+        st.subheader("📊 Tổng Quan")
+        rec_counts = df_decision['recommendation'].value_counts()
+        
+        cols = st.columns(5)
+        for i, (rec, count) in enumerate(rec_counts.items()):
+            cols[i % 5].metric(rec, count)
+        
+        st.divider()
+        
+        # Show by recommendation
+        st.subheader("📋 Chi Tiết Theo Khuyến Nghị")
+        
+        recommendation_filter = st.selectbox(
+            "Lọc theo khuyến nghị:",
+            ["Tất cả"] + list(df_decision['recommendation'].unique())
+        )
+        
+        if recommendation_filter != "Tất cả":
+            df_show = df_decision[df_decision['recommendation'] == recommendation_filter]
+        else:
+            df_show = df_decision
+        
+        display_cols = ['product_name', 'avg_final_price', 'avg_discount_percent', 
+                       'avg_bought', 'total_score', 'confidence', 'recommendation']
+        available_display = [c for c in display_cols if c in df_show.columns]
+        
+        st.dataframe(
+            df_show[available_display].sort_values('total_score', ascending=False).head(50),
+            use_container_width=True,
+            hide_index=True
+        )
+        
+        st.divider()
+        
+        # Top Actions
+        st.subheader("🎯 Top Actions")
+        
+        col1, col2, col3 = st.columns(3)
+        
+        with col1:
+            st.markdown("**🟢 Top 10 TĂNG GIÁ**")
+            top_increase = df_decision[df_decision['recommendation'].str.contains('TĂNG')].nlargest(10, 'total_score')
+            if len(top_increase) > 0:
+                for _, row in top_increase.iterrows():
+                    st.write(f"• {row['product_name'][:30]}... ({row['confidence']})")
+            else:
+                st.info("Không có")
+        
+        with col2:
+            st.markdown("**⚪ GIỮ GIÁ (Cần Review)**")
+            hold_items = df_decision[df_decision['recommendation'].str.contains('GIỮ')].head(10)
+            if len(hold_items) > 0:
+                for _, row in hold_items.iterrows():
+                    st.write(f"• {row['product_name'][:30]}...")
+            else:
+                st.info("Không có")
+        
+        with col3:
+            st.markdown("**🔴 Top 10 GIẢM GIÁ**")
+            top_decrease = df_decision[df_decision['recommendation'].str.contains('GIẢM')].nsmallest(10, 'total_score')
+            if len(top_decrease) > 0:
+                for _, row in top_decrease.iterrows():
+                    st.write(f"• {row['product_name'][:30]}... ({row['confidence']})")
+            else:
+                st.info("Không có")
+        
+        st.divider()
+        st.info("""
+        **📖 Cách đọc kết quả:**
+        - **Total Score**: Điểm tổng hợp từ 3 modules (K-Means, Discount-Demand, Sentiment)
+        - **Confidence**: HIGH = 2+ signals đồng thuận, MEDIUM = 1 signal, LOW = không rõ
+        - **Recommendation**: Quyết định cuối cùng dựa trên total score
+        """)
+    else:
+        st.info("👆 Nhấn nút **Chạy Phân Tích Tổng Hợp** để bắt đầu.")
+
+# TAB 6: PRICE SIMULATOR (ML REGRESSION)
+with tab6:
+    st.header("🔮 Price Simulator (ML Regression)")
+    st.markdown("""
+    *Sử dụng Machine Learning để dự đoán tác động của thay đổi giá lên demand.*
+    
+    **Mô hình:** RandomForest Regressor  
+    **Input:** price, discount, rating, stock  
+    **Output:** Predicted bought (demand)
+    """)
+    
+    st.divider()
+    
+    # Train model
+    st.subheader("📊 1. Train Demand Prediction Model")
+    
+    st.markdown("""
+    **Cải tiến:**
+    - Log transform target (handle skewed data)
+    - Loại bỏ outliers (IQR method)
+    - Sử dụng GradientBoosting (tốt hơn RandomForest cho tabular data)
+    - Thêm features: price_per_rating, discount_effectiveness
+    """)
+    
+    if st.button("🚀 Train Model (Improved)", type="primary"):
+        with st.spinner("Đang train model..."):
+            from sklearn.ensemble import GradientBoostingRegressor
+            from sklearn.model_selection import train_test_split
+            from sklearn.metrics import mean_absolute_error, r2_score
+            from sklearn.preprocessing import StandardScaler
+            
+            # Prepare data
+            df_train = df_feat.copy()
+            
+            # Basic features
+            feature_cols_ml = ['avg_final_price', 'avg_discount_percent', 'rating_mean', 'stock_rate']
+            available_cols_ml = [c for c in feature_cols_ml if c in df_train.columns]
+            
+            # Remove rows with missing target
+            df_train = df_train.dropna(subset=['avg_bought'] + available_cols_ml)
+            
+            # Remove outliers using IQR
+            Q1 = df_train['avg_bought'].quantile(0.05)
+            Q3 = df_train['avg_bought'].quantile(0.95)
+            df_train = df_train[(df_train['avg_bought'] >= Q1) & (df_train['avg_bought'] <= Q3)]
+            
+            # Remove zero/negative values
+            df_train = df_train[df_train['avg_bought'] > 0]
+            df_train = df_train[df_train['avg_final_price'] > 0]
+            
+            if len(df_train) < 100:
+                st.error("Không đủ dữ liệu để train (cần ít nhất 100 rows)")
+            else:
+                # Feature Engineering
+                df_train['price_per_rating'] = df_train['avg_final_price'] / (df_train['rating_mean'].replace(0, 4.0))
+                df_train['log_price'] = np.log1p(df_train['avg_final_price'])
+                df_train['discount_x_stock'] = df_train['avg_discount_percent'] * df_train['stock_rate']
+                
+                # Updated feature list
+                feature_cols_final = available_cols_ml + ['price_per_rating', 'log_price', 'discount_x_stock']
+                feature_cols_final = [c for c in feature_cols_final if c in df_train.columns]
+                
+                X = df_train[feature_cols_final].fillna(0)
+                
+                # Log transform target (critical for skewed data!)
+                y = np.log1p(df_train['avg_bought'])
+                
+                # Scale features
+                scaler = StandardScaler()
+                X_scaled = scaler.fit_transform(X)
+                X_scaled_df = pd.DataFrame(X_scaled, columns=feature_cols_final, index=X.index)
+                
+                # Split
+                X_train, X_test, y_train, y_test = train_test_split(
+                    X_scaled_df, y, test_size=0.2, random_state=42
+                )
+                
+                # Train GradientBoosting
+                model = GradientBoostingRegressor(
+                    n_estimators=100,
+                    max_depth=5,
+                    learning_rate=0.1,
+                    min_samples_split=10,
+                    random_state=42
+                )
+                model.fit(X_train, y_train)
+                
+                # Evaluate on log scale
+                y_pred_log = model.predict(X_test)
+                
+                # Convert back to original scale for metrics
+                y_pred = np.expm1(y_pred_log)
+                y_test_original = np.expm1(y_test)
+                
+                mae = mean_absolute_error(y_test_original, y_pred)
+                r2 = r2_score(y_test, y_pred_log)  # R² on log scale
+                
+                # Store model and scaler
+                st.session_state['demand_model'] = model
+                st.session_state['demand_scaler'] = scaler
+                st.session_state['model_features'] = feature_cols_final
+                st.session_state['df_simulator'] = df_train
+                st.session_state['use_log_transform'] = True
+                
+                st.success("✅ Model trained thành công!")
+                
+                col1, col2, col3, col4 = st.columns(4)
+                col1.metric("MAE", f"{mae:.1f}")
+                col2.metric("R² Score", f"{r2:.3f}")
+                col3.metric("Training samples", len(X_train))
+                col4.metric("Features", len(feature_cols_final))
+                
+                # Quality assessment
+                if r2 >= 0.3:
+                    st.success("✅ Model quality: ACCEPTABLE - Có thể dùng để tham khảo")
+                elif r2 >= 0.1:
+                    st.warning("⚠️ Model quality: LOW - Kết quả chỉ mang tính tham khảo")
+                else:
+                    st.error("❌ Model quality: POOR - Không nên dùng để ra quyết định")
+
+                
+                # Feature importance
+                st.subheader("📈 Feature Importance")
+                importance_df = pd.DataFrame({
+                    'Feature': feature_cols_final,
+                    'Importance': model.feature_importances_
+                }).sort_values('Importance', ascending=False)
+                
+                fig_imp = px.bar(
+                    importance_df, 
+                    x='Importance', 
+                    y='Feature',
+                    orientation='h',
+                    title="Các yếu tố ảnh hưởng đến Demand"
+                )
+                st.plotly_chart(fig_imp, use_container_width=True)
+    
+    st.divider()
+    
+    # Simulation
+    if 'demand_model' in st.session_state:
+        st.subheader("🎮 2. Simulate Price Changes")
+        
+        model = st.session_state['demand_model']
+        features = st.session_state['model_features']
+        df_sim = st.session_state['df_simulator']
+        
+        st.markdown("**Chọn loại simulation:**")
+        
+        sim_type = st.radio(
+            "Simulation type:",
+            ["Thay đổi Discount (%)", "Thay đổi Giá (%)", "Single Product"],
+            horizontal=True
+        )
+        
+        if sim_type == "Thay đổi Discount (%)":
+            discount_change = st.slider(
+                "Thay đổi discount (điểm %):",
+                min_value=-20, max_value=20, value=5, step=1
+            )
+            
+            if st.button("🔮 Simulate Discount Change"):
+                X_original = df_sim[features].fillna(0)
+                X_simulated = X_original.copy()
+                X_simulated['avg_discount_percent'] = (
+                    X_simulated['avg_discount_percent'] + discount_change
+                ).clip(0, 100)
+                
+                # Predict
+                pred_original = model.predict(X_original)
+                pred_simulated = model.predict(X_simulated)
+                
+                # Compare
+                df_result = df_sim[['product_name', 'avg_final_price', 'avg_discount_percent', 'avg_bought']].copy()
+                df_result['predicted_original'] = pred_original
+                df_result['predicted_new'] = pred_simulated
+                df_result['delta_bought'] = pred_simulated - pred_original
+                df_result['delta_pct'] = (df_result['delta_bought'] / pred_original * 100).round(1)
+                
+                # Summary
+                avg_delta = df_result['delta_pct'].mean()
+                
+                if avg_delta > 0:
+                    st.success(f"📈 **Kết quả:** Tăng discount {discount_change}% → Demand dự kiến tăng **{avg_delta:.1f}%**")
+                else:
+                    st.warning(f"📉 **Kết quả:** Thay đổi discount {discount_change}% → Demand dự kiến giảm **{abs(avg_delta):.1f}%**")
+                
+                # Show top gainers/losers
+                st.markdown("**Top 10 sản phẩm hưởng lợi nhất:**")
+                st.dataframe(
+                    df_result.nlargest(10, 'delta_bought')[['product_name', 'avg_bought', 'predicted_new', 'delta_pct']],
+                    use_container_width=True,
+                    hide_index=True
+                )
+        
+        elif sim_type == "Thay đổi Giá (%)":
+            price_change = st.slider(
+                "Thay đổi giá (%):",
+                min_value=-30, max_value=30, value=-10, step=5
+            )
+            
+            if st.button("🔮 Simulate Price Change"):
+                X_original = df_sim[features].fillna(0)
+                X_simulated = X_original.copy()
+                X_simulated['avg_final_price'] = (
+                    X_simulated['avg_final_price'] * (1 + price_change/100)
+                ).clip(0, None)
+                
+                # Predict
+                pred_original = model.predict(X_original)
+                pred_simulated = model.predict(X_simulated)
+                
+                # Compare
+                df_result = df_sim[['product_name', 'avg_final_price', 'avg_bought']].copy()
+                df_result['new_price'] = df_result['avg_final_price'] * (1 + price_change/100)
+                df_result['predicted_original'] = pred_original
+                df_result['predicted_new'] = pred_simulated
+                df_result['delta_bought'] = pred_simulated - pred_original
+                df_result['delta_pct'] = (df_result['delta_bought'] / pred_original * 100).round(1)
+                
+                # Revenue impact estimate
+                df_result['revenue_original'] = df_result['avg_final_price'] * pred_original
+                df_result['revenue_new'] = df_result['new_price'] * pred_simulated
+                df_result['revenue_delta_pct'] = (
+                    (df_result['revenue_new'] - df_result['revenue_original']) / 
+                    df_result['revenue_original'] * 100
+                ).round(1)
+                
+                # Summary
+                avg_demand_delta = df_result['delta_pct'].mean()
+                avg_revenue_delta = df_result['revenue_delta_pct'].mean()
+                
+                col1, col2 = st.columns(2)
+                with col1:
+                    if avg_demand_delta > 0:
+                        st.success(f"📈 Demand: **+{avg_demand_delta:.1f}%**")
+                    else:
+                        st.warning(f"📉 Demand: **{avg_demand_delta:.1f}%**")
+                
+                with col2:
+                    if avg_revenue_delta > 0:
+                        st.success(f"💰 Revenue: **+{avg_revenue_delta:.1f}%**")
+                    else:
+                        st.error(f"💸 Revenue: **{avg_revenue_delta:.1f}%**")
+                
+                st.markdown("**Chi tiết top 10:**")
+                st.dataframe(
+                    df_result.nlargest(10, 'revenue_delta_pct')[
+                        ['product_name', 'avg_final_price', 'new_price', 'delta_pct', 'revenue_delta_pct']
+                    ],
+                    use_container_width=True,
+                    hide_index=True
+                )
+        
+        else:  # Single Product
+            product_list = df_sim['product_name'].tolist()
+            selected_product = st.selectbox("Chọn sản phẩm:", product_list[:100])
+            
+            product_data = df_sim[df_sim['product_name'] == selected_product].iloc[0]
+            
+            col1, col2 = st.columns(2)
+            with col1:
+                st.write(f"**Giá hiện tại:** {product_data['avg_final_price']:,.0f}đ")
+                st.write(f"**Discount hiện tại:** {product_data['avg_discount_percent']:.1f}%")
+            with col2:
+                st.write(f"**Bought hiện tại:** {product_data['avg_bought']:.0f}")
+                st.write(f"**Rating:** {product_data.get('rating_mean', 'N/A')}")
+            
+            new_price = st.number_input(
+                "Nhập giá mới (VNĐ):", 
+                min_value=1000, 
+                max_value=10000000,
+                value=int(product_data['avg_final_price']),
+                step=1000
+            )
+            new_discount = st.slider(
+                "Nhập discount mới (%):",
+                min_value=0, max_value=70,
+                value=int(product_data['avg_discount_percent'])
+            )
+            
+            if st.button("🔮 Predict Demand"):
+                # Get scaler if available
+                scaler = st.session_state.get('demand_scaler', None)
+                use_log = st.session_state.get('use_log_transform', False)
+                
+                # Get current product's other features
+                rating = product_data.get('rating_mean', 4.0)
+                stock = product_data.get('stock_rate', 0.5)
+                
+                # Create feature dict matching training features
+                feature_dict = {
+                    'avg_final_price': new_price,
+                    'avg_discount_percent': new_discount,
+                    'rating_mean': rating,
+                    'stock_rate': stock,
+                    'price_per_rating': new_price / max(rating, 1.0),
+                    'log_price': np.log1p(new_price),
+                    'discount_x_stock': new_discount * stock
+                }
+                
+                # Create DataFrame with only the features the model expects
+                X_new = pd.DataFrame([[feature_dict.get(f, 0) for f in features]], columns=features)
+                
+                # Apply scaling if scaler exists
+                if scaler is not None:
+                    X_new_scaled = scaler.transform(X_new)
+                    X_new = pd.DataFrame(X_new_scaled, columns=features)
+                
+                # Predict
+                predicted_log = model.predict(X_new)[0]
+                
+                # Convert back from log if needed
+                if use_log:
+                    predicted_bought = np.expm1(predicted_log)
+                else:
+                    predicted_bought = predicted_log
+                
+                current_bought = product_data['avg_bought']
+                delta = predicted_bought - current_bought
+                delta_pct = (delta / current_bought * 100) if current_bought > 0 else 0
+                
+                st.divider()
+                col1, col2, col3 = st.columns(3)
+                col1.metric("Bought hiện tại", f"{current_bought:.0f}")
+                col2.metric("Bought dự đoán", f"{predicted_bought:.0f}", f"{delta_pct:+.1f}%")
+                
+                # Revenue comparison
+                rev_current = product_data['avg_final_price'] * current_bought
+                rev_new = new_price * predicted_bought
+                rev_delta_pct = ((rev_new - rev_current) / rev_current * 100) if rev_current > 0 else 0
+                
+                col3.metric("Revenue impact", f"{rev_delta_pct:+.1f}%")
+                
+                if rev_delta_pct > 0:
+                    st.success(f"✅ Thay đổi giá này có thể **TĂNG revenue** {rev_delta_pct:.1f}%")
+                else:
+                    st.warning(f"⚠️ Thay đổi giá này có thể **GIẢM revenue** {abs(rev_delta_pct):.1f}%")
+        
+        st.divider()
+        st.info("""
+        **⚠️ Lưu ý quan trọng:**
+        - Model này dự đoán dựa trên **correlation**, không phải **causation**
+        - Kết quả chỉ mang tính **tham khảo**, cần A/B testing thực tế để validate
+        - R² thấp (<0.5) nghĩa là model chưa capture được hết factors ảnh hưởng demand
+        """)
+    else:
+        st.info("👆 Train model trước khi simulation.")
