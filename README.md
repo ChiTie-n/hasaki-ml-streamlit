@@ -1,102 +1,72 @@
-# 🏪 Hasaki ML Streamlit Dashboard
+# 🏪 Hasaki ML Streamlit - Price Strategy Dashboard
 
-Ứng dụng Streamlit để phân tích dữ liệu và Machine Learning cho Hasaki.
+Ứng dụng phân tích chiến lược giá bằng Machine Learning và NLP cho Hasaki.
 
 ## 📁 Cấu trúc dự án
 
 ```
 hasaki-ml-streamlit/
-├── app/                    # Code Streamlit
-│   ├── app.py             # File chạy chính
-│   └── pages/             # Các trang con (multi-page app)
-│       ├── 01_Overview.py
-│       ├── 02_EDA.py
-│       ├── 03_ML_Models.py
-│       └── 04_Reviews_NLP.py
-├── src/                   # Logic xử lý dữ liệu & ML
-│   ├── __init__.py
-│   ├── config.py         # Config chung (path, DB URL,...)
-│   ├── data_loader.py    # Hàm đọc dữ liệu (Supabase/CSV/Parquet)
-│   ├── features.py       # Tạo features chung (price, discount, KPI,...)
-│   ├── viz.py           # Hàm vẽ biểu đồ (plotly/matplotlib)
-│   └── models/
-│       ├── clustering.py # KMeans, PCA
-│       ├── regression.py # XGBoost/LightGBM, RandomForest
-│       └── sentiment.py  # Model NLP (nếu có)
-├── data/                 # Dữ liệu raw/processed
-│   ├── raw/
-│   └── processed/
-├── notebooks/            # Jupyter để thử nghiệm (EDA, thử model)
-├── .env                 # Biến môi trường (DB_URL, API_KEY, ...)
-├── requirements.txt     # Dependencies
-└── README.md           # File này
+├── app/
+│   ├── app.py                 # Entry point
+│   └── pages/
+│       ├── 01_Overview.py     # Data preview
+│       ├── 02_EDA.py          # 6 biểu đồ phân tích
+│       └── 03_ML_Models.py    # 4 tabs ML
+├── src/
+│   ├── config.py              # Supabase config
+│   ├── data_loader.py         # Load data từ Supabase
+│   └── features.py            # Feature engineering & sentiment
+├── data/
+│   └── gold_price_sentiment.csv
+├── .env                       # SUPABASE_URL, SUPABASE_KEY
+└── requirements.txt
 ```
 
 ## 🚀 Cài đặt
 
-1. Clone repository:
 ```bash
-cd hasaki-ml-streamlit
-```
-
-2. Tạo virtual environment (khuyến nghị):
-```bash
-python -m venv venv
-# Windows
-venv\Scripts\activate
-# Linux/Mac
-source venv/bin/activate
-```
-
-3. Cài đặt dependencies:
-```bash
+# 1. Cài dependencies
 pip install -r requirements.txt
-```
 
-4. Cấu hình biến môi trường:
-   - Copy file `.env` và điền thông tin:
-   ```
-   DB_URL=your_database_url
-   SUPABASE_URL=your_supabase_url
-   SUPABASE_KEY=your_supabase_key
-   API_KEY=your_api_key
-   ```
+# 2. Cấu hình .env
+SUPABASE_URL=your_url
+SUPABASE_KEY=your_key
 
-## 🎯 Chạy ứng dụng
-
-```bash
+# 3. Chạy app
 streamlit run app/app.py
 ```
 
-Ứng dụng sẽ mở tại `http://localhost:8501`
-
 ## 📊 Tính năng
 
-- **Overview**: Tổng quan về dữ liệu
-- **EDA**: Phân tích dữ liệu khám phá
-- **ML Models**: Các mô hình Machine Learning (Clustering, Regression)
-- **Reviews NLP**: Phân tích đánh giá sản phẩm bằng NLP
+### 1. Overview
+- Load data từ Supabase
+- Preview & basic stats
 
-## 🛠️ Công nghệ sử dụng
+### 2. EDA (6 Outputs)
+- Boxplot giá/discount theo category
+- Scatter discount vs bought
+- Scatter price vs bought  
+- Scatter stock vs bought
+- 3 nhóm sản phẩm chiến lược
 
-- **Streamlit**: Framework web app
-- **Pandas, NumPy**: Xử lý dữ liệu
-- **Plotly, Matplotlib, Seaborn**: Visualization
-- **Scikit-learn, XGBoost, LightGBM**: Machine Learning
-- **Python-dotenv**: Quản lý biến môi trường
+### 3. ML Models (4 Tabs)
 
-## 📝 Hướng dẫn phát triển
+| Tab | Mô tả |
+|-----|-------|
+| K-Means Clustering | Phân cụm sản phẩm + chiến lược giá |
+| Discount-Demand | Phân tích mô tả discount effectiveness |
+| Sentiment Rule-Based | Keywords matching cho price sentiment |
+| Sentiment ML | Pre-trained XLM-RoBERTa (no training needed) |
 
-1. Thêm dữ liệu vào folder `data/raw/`
-2. Xử lý dữ liệu và lưu vào `data/processed/`
-3. Phát triển các module trong folder `src/`
-4. Tạo các trang mới trong `app/pages/`
-5. Update `requirements.txt` khi thêm dependencies mới
+## 🛠️ Tech Stack
 
-## 👨‍💻 Tác giả
+- **Streamlit** - Web framework
+- **Pandas, NumPy** - Data processing
+- **Plotly** - Visualization
+- **Scikit-learn** - K-Means, StandardScaler
+- **Transformers** - Pre-trained sentiment model
+- **Supabase** - Database
 
-Dự án được tạo cho môn Big Data
+## 👨‍💻 Author
 
-## 📄 License
-
-This project is licensed under the MIT License.
+Dự án Big Data - 2024

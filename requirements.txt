@@ -1,25 +1,19 @@
-# Core libraries
+# Core
 streamlit>=1.28.0
 pandas>=2.0.0
 numpy>=1.24.0
 
-# Data visualization
+# Visualization
 plotly>=5.17.0
-matplotlib>=3.7.0
-seaborn>=0.12.0
 
 # Machine Learning
 scikit-learn>=1.3.0
-xgboost>=2.0.0
-lightgbm>=4.0.0
 
-# NLP (optional)
-# nltk>=3.8.0
-# transformers>=4.30.0
+# NLP (for Tab 4 - ML Sentiment)
+torch>=2.0.0
+transformers>=4.30.0
+sentencepiece>=0.1.99
 
-# Database & API
+# Database
 python-dotenv>=1.0.0
 supabase>=2.0.0
-
-# Utilities
-openpyxl>=3.1.0
