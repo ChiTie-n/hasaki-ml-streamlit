@@ -1269,9 +1269,24 @@ with tab6:
     - Thêm features: price_per_rating, discount_effectiveness
     """)
     
-    if st.button("🚀 Train Model (Improved)", type="primary"):
-        with st.spinner("Đang train model..."):
-            from sklearn.ensemble import GradientBoostingRegressor
+    # Model selection
+    model_options = {
+        "GradientBoosting": "Ensemble - tốt cho tabular data, học từ errors",
+        "RandomForest": "Ensemble - robust, ít overfit, dễ tune",
+        "LinearRegression": "Simple baseline - dễ interpret",
+        "Ridge": "Linear với regularization - tránh overfit"
+    }
+    
+    selected_model = st.selectbox(
+        "Chọn mô hình:",
+        options=list(model_options.keys()),
+        format_func=lambda x: f"{x} - {model_options[x]}"
+    )
+    
+    if st.button("🚀 Train Model", type="primary"):
+        with st.spinner(f"Đang train {selected_model}..."):
+            from sklearn.ensemble import GradientBoostingRegressor, RandomForestRegressor
+            from sklearn.linear_model import LinearRegression, Ridge
             from sklearn.model_selection import train_test_split
             from sklearn.metrics import mean_absolute_error, r2_score
             from sklearn.preprocessing import StandardScaler
@@ -1322,14 +1337,22 @@ with tab6:
                     X_scaled_df, y, test_size=0.2, random_state=42
                 )
                 
-                # Train GradientBoosting
-                model = GradientBoostingRegressor(
-                    n_estimators=100,
-                    max_depth=5,
-                    learning_rate=0.1,
-                    min_samples_split=10,
-                    random_state=42
-                )
+                # Select and train model
+                if selected_model == "GradientBoosting":
+                    model = GradientBoostingRegressor(
+                        n_estimators=100, max_depth=5, learning_rate=0.1,
+                        min_samples_split=10, random_state=42
+                    )
+                elif selected_model == "RandomForest":
+                    model = RandomForestRegressor(
+                        n_estimators=100, max_depth=10, min_samples_split=5,
+                        random_state=42, n_jobs=-1
+                    )
+                elif selected_model == "LinearRegression":
+                    model = LinearRegression()
+                else:  # Ridge
+                    model = Ridge(alpha=1.0, random_state=42)
+                
                 model.fit(X_train, y_train)
                 
                 # Evaluate on log scale
@@ -1348,8 +1371,9 @@ with tab6:
                 st.session_state['model_features'] = feature_cols_final
                 st.session_state['df_simulator'] = df_train
                 st.session_state['use_log_transform'] = True
+                st.session_state['model_name'] = selected_model
                 
-                st.success("✅ Model trained thành công!")
+                st.success(f"✅ **{selected_model}** trained thành công!")
                 
                 col1, col2, col3, col4 = st.columns(4)
                 col1.metric("MAE", f"{mae:.1f}")
@@ -1407,22 +1431,51 @@ with tab6:
             )
             
             if st.button("🔮 Simulate Discount Change"):
-                X_original = df_sim[features].fillna(0)
+                scaler = st.session_state.get('demand_scaler', None)
+                use_log = st.session_state.get('use_log_transform', False)
+                
+                # Create original features
+                X_original = df_sim[features].fillna(0).copy()
+                
+                # Create simulated features with updated discount
                 X_simulated = X_original.copy()
-                X_simulated['avg_discount_percent'] = (
-                    X_simulated['avg_discount_percent'] + discount_change
-                ).clip(0, 100)
+                new_discount = (X_simulated['avg_discount_percent'] + discount_change).clip(0, 100)
+                X_simulated['avg_discount_percent'] = new_discount
+                
+                # Update engineered features based on new discount
+                if 'discount_x_stock' in features and 'stock_rate' in df_sim.columns:
+                    X_simulated['discount_x_stock'] = new_discount * df_sim['stock_rate'].fillna(0.5)
+                
+                # Apply scaler if available
+                if scaler is not None:
+                    X_original_scaled = scaler.transform(X_original)
+                    X_simulated_scaled = scaler.transform(X_simulated)
+                else:
+                    X_original_scaled = X_original.values
+                    X_simulated_scaled = X_simulated.values
                 
                 # Predict
-                pred_original = model.predict(X_original)
-                pred_simulated = model.predict(X_simulated)
+                pred_original_raw = model.predict(X_original_scaled)
+                pred_simulated_raw = model.predict(X_simulated_scaled)
+                
+                # Convert from log scale if needed
+                if use_log:
+                    pred_original = np.expm1(pred_original_raw)
+                    pred_simulated = np.expm1(pred_simulated_raw)
+                else:
+                    pred_original = pred_original_raw
+                    pred_simulated = pred_simulated_raw
                 
                 # Compare
                 df_result = df_sim[['product_name', 'avg_final_price', 'avg_discount_percent', 'avg_bought']].copy()
                 df_result['predicted_original'] = pred_original
                 df_result['predicted_new'] = pred_simulated
                 df_result['delta_bought'] = pred_simulated - pred_original
-                df_result['delta_pct'] = (df_result['delta_bought'] / pred_original * 100).round(1)
+                df_result['delta_pct'] = np.where(
+                    pred_original > 0.1,
+                    (df_result['delta_bought'] / pred_original * 100).round(1),
+                    0
+                )
                 
                 # Summary
                 avg_delta = df_result['delta_pct'].mean()
@@ -1447,15 +1500,43 @@ with tab6:
             )
             
             if st.button("🔮 Simulate Price Change"):
-                X_original = df_sim[features].fillna(0)
+                scaler = st.session_state.get('demand_scaler', None)
+                use_log = st.session_state.get('use_log_transform', False)
+                
+                # Create original features
+                X_original = df_sim[features].fillna(0).copy()
+                
+                # Create simulated features with updated price
                 X_simulated = X_original.copy()
-                X_simulated['avg_final_price'] = (
-                    X_simulated['avg_final_price'] * (1 + price_change/100)
-                ).clip(0, None)
+                new_prices = X_simulated['avg_final_price'] * (1 + price_change/100)
+                X_simulated['avg_final_price'] = new_prices.clip(0, None)
+                
+                # Update engineered features based on new price
+                if 'log_price' in features:
+                    X_simulated['log_price'] = np.log1p(new_prices)
+                if 'price_per_rating' in features and 'rating_mean' in df_sim.columns:
+                    rating = df_sim['rating_mean'].fillna(4.0)
+                    X_simulated['price_per_rating'] = new_prices / rating.clip(lower=1.0)
+                
+                # Apply scaler if available
+                if scaler is not None:
+                    X_original_scaled = scaler.transform(X_original)
+                    X_simulated_scaled = scaler.transform(X_simulated)
+                else:
+                    X_original_scaled = X_original.values
+                    X_simulated_scaled = X_simulated.values
                 
                 # Predict
-                pred_original = model.predict(X_original)
-                pred_simulated = model.predict(X_simulated)
+                pred_original_raw = model.predict(X_original_scaled)
+                pred_simulated_raw = model.predict(X_simulated_scaled)
+                
+                # Convert from log scale if needed
+                if use_log:
+                    pred_original = np.expm1(pred_original_raw)
+                    pred_simulated = np.expm1(pred_simulated_raw)
+                else:
+                    pred_original = pred_original_raw
+                    pred_simulated = pred_simulated_raw
                 
                 # Compare
                 df_result = df_sim[['product_name', 'avg_final_price', 'avg_bought']].copy()
@@ -1463,15 +1544,21 @@ with tab6:
                 df_result['predicted_original'] = pred_original
                 df_result['predicted_new'] = pred_simulated
                 df_result['delta_bought'] = pred_simulated - pred_original
-                df_result['delta_pct'] = (df_result['delta_bought'] / pred_original * 100).round(1)
+                df_result['delta_pct'] = np.where(
+                    pred_original > 0.1,
+                    (df_result['delta_bought'] / pred_original * 100).round(1),
+                    0
+                )
                 
                 # Revenue impact estimate
                 df_result['revenue_original'] = df_result['avg_final_price'] * pred_original
                 df_result['revenue_new'] = df_result['new_price'] * pred_simulated
-                df_result['revenue_delta_pct'] = (
-                    (df_result['revenue_new'] - df_result['revenue_original']) / 
-                    df_result['revenue_original'] * 100
-                ).round(1)
+                df_result['revenue_delta_pct'] = np.where(
+                    df_result['revenue_original'] > 0.1,
+                    ((df_result['revenue_new'] - df_result['revenue_original']) / 
+                     df_result['revenue_original'] * 100).round(1),
+                    0
+                )
                 
                 # Summary
                 avg_demand_delta = df_result['delta_pct'].mean()
@@ -1513,6 +1600,10 @@ with tab6:
                 st.write(f"**Bought hiện tại:** {product_data['avg_bought']:.0f}")
                 st.write(f"**Rating:** {product_data.get('rating_mean', 'N/A')}")
             
+            # Limit to training data range to avoid extrapolation
+            max_discount_in_data = int(df_sim['avg_discount_percent'].quantile(0.95))  # 95th percentile
+            min_discount_in_data = int(df_sim['avg_discount_percent'].quantile(0.05))  # 5th percentile
+            
             new_price = st.number_input(
                 "Nhập giá mới (VNĐ):", 
                 min_value=1000, 
@@ -1521,9 +1612,10 @@ with tab6:
                 step=1000
             )
             new_discount = st.slider(
-                "Nhập discount mới (%):",
-                min_value=0, max_value=70,
-                value=int(product_data['avg_discount_percent'])
+                f"Nhập discount mới (%) - Range trong data: {min_discount_in_data}%-{max_discount_in_data}%:",
+                min_value=min_discount_in_data, 
+                max_value=max_discount_in_data,
+                value=min(max(int(product_data['avg_discount_percent']), min_discount_in_data), max_discount_in_data)
             )
             
             if st.button("🔮 Predict Demand"):
