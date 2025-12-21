@@ -1,0 +1,100 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+* {
+    font-family: 'Inter', sans-serif;
+}
+
+/* Smooth page transitions */
+.main,
+[data-testid="stSidebar"],
+[data-testid="stAppViewContainer"] {
+    animation: fadeIn 0.2s ease-in;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0.7;
+    }
+
+    to {
+        opacity: 1;
+    }
+}
+
+/* Background for main app - will be overridden by Python with actual image */
+[data-testid="stAppViewContainer"] {
+    background-color: #f0f4f8;
+}
+
+.stApp {
+    background-color: #f0f4f8;
+}
+
+.main .block-container {
+    padding: 2rem 3rem;
+    max-width: 1400px;
+}
+
+/* Hide menu and Deploy button */
+#MainMenu {
+    visibility: hidden;
+}
+
+footer {
+    visibility: hidden;
+}
+
+[data-testid="stToolbar"] {
+    visibility: hidden;
+}
+
+header {
+    visibility: hidden;
+}
+
+/* Header Box */
+.header-box {
+    background: white;
+    border-radius: 16px;
+    padding: 2rem;
+    margin-bottom: 1.5rem;
+    border: 2px solid #3b82f6;
+    box-shadow: 0 4px 16px rgba(59, 130, 246, 0.15);
+}
+
+.header-title {
+    font-size: 2rem;
+    font-weight: 700;
+    color: #0E47A1 !important;
+    margin: 0 0 0.5rem 0;
+}
+
+.header-subtitle {
+    font-size: 1rem;
+    color: #64748b;
+    margin: 0;
+}
+
+/* Info Box */
+.info-box {
+    background: #e0f2fe;
+    border-left: 4px solid #3b82f6;
+    padding: 1rem;
+    border-radius: 8px;
+}
+
+/* Cards */
+.card {
+    background: white;
+    border-radius: 12px;
+    padding: 1.5rem;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+    border: 1px solid #e2e8f0;
+}
+
+.card-title {
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: #1e293b;
+    margin-bottom: 0.5rem;
+}

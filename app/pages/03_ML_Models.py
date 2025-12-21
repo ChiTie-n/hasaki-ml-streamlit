@@ -1,10 +1,4 @@
-"""
-ML Models - Phân cụm sản phẩm cho Chiến lược Giá (Academic Version)
-4 Tabs: K-Means Clustering | Discount-Demand Segmentation | Sentiment Rule-Based | Sentiment ML
 
-Author: AI Agent
-Updated: 2024-12-21
-"""
 import streamlit as st
 import pandas as pd
 import numpy as np
@@ -18,8 +12,13 @@ from pathlib import Path
 import warnings
 warnings.filterwarnings('ignore')
 
-# Add root to path
-sys.path.append(str(Path(__file__).parent.parent.parent))
+# Add paths for imports
+app_dir = Path(__file__).parent.parent
+root_dir = app_dir.parent
+sys.path.insert(0, str(app_dir))
+sys.path.insert(0, str(root_dir))
+
+
 
 from src.data_loader import (
     load_dim_product,
@@ -37,7 +36,11 @@ from src.features import (
 
 st.set_page_config(page_title="ML Models", page_icon="🤖", layout="wide")
 
-st.title("🤖 ML Models - Chiến Lược Giá")
+# Inject styling
+from styles import inject_page_css
+inject_page_css()
+
+st.markdown('<h1><i class="fa-solid fa-robot" style="color: #3b82f6; margin-right: 0.5rem;"></i> ML Models - Chiến Lược Giá</h1>', unsafe_allow_html=True)
 st.markdown("*Phân tích phân cụm và sentiment để đưa ra quyết định giá*")
 
 

@@ -6,15 +6,20 @@ import pandas as pd
 import sys
 from pathlib import Path
 
-# Thêm thư mục src vào path
-# Thêm thư mục gốc vào path để import được module src
-sys.path.append(str(Path(__file__).parent.parent.parent))
+# Add paths for imports
+app_dir = Path(__file__).parent.parent
+root_dir = app_dir.parent
+sys.path.insert(0, str(app_dir))
+sys.path.insert(0, str(root_dir))
 
 st.set_page_config(page_title="Overview", page_icon="📈", layout="wide")
 
-st.title("📈 Tổng Quan Dữ Liệu")
+# Inject styles
+from styles import inject_page_css
+inject_page_css()
 
-st.markdown("### Thống kê tổng quan")
+st.markdown('<h1><i class="fa-solid fa-database" style="color: #3b82f6; margin-right: 0.5rem;"></i> Tổng Quan Dữ Liệu</h1>', unsafe_allow_html=True)
+st.markdown("### Thống kê và truy xuất dữ liệu từ Supabase")
 
 from src.config import SUPABASE_URL, SUPABASE_KEY
 from src.data_loader import load_from_supabase
@@ -26,10 +31,10 @@ if not SUPABASE_URL or not SUPABASE_KEY:
     st.stop()
 
 # Input lấy dữ liệu
-with st.expander("📥 Lấy dữ liệu từ Supabase", expanded=True):
+st.markdown('<p style="margin-bottom: 0.5rem;"><i class="fa-solid fa-cloud-arrow-down" style="color: #3b82f6; margin-right: 0.5rem;"></i>Lấy dữ liệu từ Supabase</p>', unsafe_allow_html=True)
+with st.expander("Cấu hình", expanded=True):
     col1, col2, col3 = st.columns([1.5, 1.5, 1])
     with col1:
-        # Danh sách bảng dựa trên hình ảnh user cung cấp
         KNOWN_TABLES = [
             "dim_brand", 
             "dim_category", 
@@ -42,7 +47,7 @@ with st.expander("📥 Lấy dữ liệu từ Supabase", expanded=True):
         table_name = st.selectbox(
             "Chọn bảng (Table):", 
             options=KNOWN_TABLES,
-            index=2 # Default to dim_product
+            index=2
         )
     
     with col2:
@@ -55,7 +60,6 @@ with st.expander("📥 Lấy dữ liệu từ Supabase", expanded=True):
 
     if load_btn:
         with st.spinner(f"Đang tải dữ liệu từ bảng '{table_name}' (Schema: {schema_name}, Limit: {rows_limit})..."):
-            # Hàm load_from_supabase mới tự lấy URL/KEY từ config
             df = load_from_supabase(table_name, schema=schema_name, limit=rows_limit)
             
             if not df.empty:
@@ -79,11 +83,11 @@ if 'current_data' in st.session_state:
     # Hiển thị DataFrame
     st.dataframe(df, use_container_width=True)
     
-    # Data Data Types
-    with st.expander("ℹ️ Thông tin cột (Data Types)"):
+    # Data Types
+    with st.expander("Thông tin cột (Data Types)"):
         dtype_df = pd.DataFrame(df.dtypes).reset_index()
         dtype_df.columns = ["Column", "Type"]
         dtype_df["Type"] = dtype_df["Type"].astype(str)
         st.table(dtype_df)
 else:
-    st.info("👆 Nhập tên bảng và nhấn 'Tải dữ liệu' để bắt đầu.")
+    st.markdown('<div style="background: #e0f2fe; border-left: 4px solid #3b82f6; padding: 1rem; border-radius: 8px;"><i class="fa-solid fa-hand-pointer" style="color: #3b82f6; margin-right: 0.5rem;"></i>Nhập tên bảng và nhấn <strong>Tải dữ liệu</strong> để bắt đầu.</div>', unsafe_allow_html=True)

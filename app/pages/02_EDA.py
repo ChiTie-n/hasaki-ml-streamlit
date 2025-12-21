@@ -8,7 +8,11 @@ import plotly.graph_objects as go
 import sys
 from pathlib import Path
 
-sys.path.append(str(Path(__file__).parent.parent.parent))
+# Add paths for imports
+app_dir = Path(__file__).parent.parent
+root_dir = app_dir.parent
+sys.path.insert(0, str(app_dir))
+sys.path.insert(0, str(root_dir))
 
 from src.data_loader import (
     load_dim_product,
@@ -19,7 +23,11 @@ from src.data_loader import (
 
 st.set_page_config(page_title="EDA", page_icon="📊", layout="wide")
 
-st.title("📊 Exploratory Data Analysis")
+# Inject styles
+from styles import inject_page_css
+inject_page_css()
+
+st.markdown('<h1><i class="fa-solid fa-chart-bar" style="color: #3b82f6; margin-right: 0.5rem;"></i> Phân Tích Dữ Liệu</h1>', unsafe_allow_html=True)
 st.markdown("### 6 Phân Tích Chính")
 
 @st.cache_data(ttl=3600)
@@ -68,7 +76,7 @@ def load_and_prepare_data():
 
 try:
     df = load_and_prepare_data()
-    st.success(f"✅ Đã tải {len(df)} sản phẩm")
+    st.markdown(f'<div style="background: #d1fae5; border-left: 4px solid #10b981; padding: 1rem; border-radius: 8px;"><i class="fa-solid fa-circle-check" style="color: #10b981; margin-right: 0.5rem;"></i>Đã tải {len(df)} sản phẩm</div>', unsafe_allow_html=True)
 except Exception as e:
     st.error(f"❌ Lỗi: {e}")
     st.stop()
@@ -85,7 +93,7 @@ df_analysis = df[
 st.divider()
 
 # ==================== OUTPUT 1: Boxplot final_price theo category ====================
-st.header("1️⃣ Boxplot Final Price theo Category")
+st.markdown('<h2><span style="background: #3b82f6; color: white; padding: 4px 10px; border-radius: 6px; margin-right: 10px;">1</span> Phân bổ giá theo danh mục</h2>', unsafe_allow_html=True)
 st.markdown("*Xác định category 'định giá cao/thấp' và outliers*")
 
 # Get top categories by product count
@@ -100,25 +108,36 @@ fig1 = px.box(
     labels={'category': 'Category', 'final_price': 'Final Price (VNĐ)'},
     points='outliers'
 )
-fig1.update_layout(height=500, xaxis_tickangle=-45)
+fig1.update_layout(
+    height=500, xaxis_tickangle=-45,
+    title_x=0.5,
+    title_xanchor='center',
+    plot_bgcolor='white',
+    paper_bgcolor='white',
+    yaxis=dict(showgrid=True, gridcolor='#f0f2f6')
+)
 st.plotly_chart(fig1, use_container_width=True)
 
 # Dynamic insights for Chart 1
 price_by_cat = df_cat.groupby('category')['final_price'].median().sort_values(ascending=False)
 highest_cat = price_by_cat.index[0]
 lowest_cat = price_by_cat.index[-1]
-st.info(f"""
-**📊 Insight:**
-- **Định giá cao nhất:** {highest_cat} (median: {price_by_cat[highest_cat]:,.0f}đ)
-- **Định giá thấp nhất:** {lowest_cat} (median: {price_by_cat[lowest_cat]:,.0f}đ)
-- Các chấm tròn phía trên là **outliers** (sản phẩm giá cao bất thường trong category)
-""")
+st.markdown(f"""
+<div style="background-color: #e0f2fe; padding: 1rem; border-radius: 0.5rem; border-left: 4px solid #3b82f6; color: #1e3a8a; margin-bottom: 1rem;">
+    <strong><i class='fa-solid fa-lightbulb' style='color: #f59e0b; margin-right: 5px;'></i> Insight:</strong>
+    <ul style="margin-top: 0.5rem; margin-bottom: 0; padding-left: 1.5rem;">
+        <li><strong>Định giá cao nhất:</strong> {highest_cat} (median: {price_by_cat[highest_cat]:,.0f}đ)</li>
+        <li><strong>Định giá thấp nhất:</strong> {lowest_cat} (median: {price_by_cat[lowest_cat]:,.0f}đ)</li>
+        <li>Các chấm tròn phía trên là <strong>outliers</strong> (sản phẩm giá cao bất thường trong category)</li>
+    </ul>
+</div>
+""", unsafe_allow_html=True)
 
 st.divider()
 
 
 # ==================== OUTPUT 2: Boxplot discount_percent theo category ====================
-st.header("2️⃣ Boxplot Discount Percent theo Category")  
+st.markdown('<h2><span style="background: #3b82f6; color: white; padding: 4px 10px; border-radius: 6px; margin-right: 10px;">2</span> Boxplot Tỷ lệ giảm giá theo danh mục</h2>', unsafe_allow_html=True)  
 st.markdown("*Category nào đang phụ thuộc khuyến mãi*")
 
 fig2 = px.box(
@@ -129,24 +148,35 @@ fig2 = px.box(
     labels={'category': 'Category', 'discount_percent': 'Discount (%)'},
     points='outliers'
 )
-fig2.update_layout(height=500, xaxis_tickangle=-45)
+fig2.update_layout(
+    height=500, xaxis_tickangle=-45,
+    title_x=0.5,
+    title_xanchor='center',
+    plot_bgcolor='white',
+    paper_bgcolor='white',
+    yaxis=dict(showgrid=True, gridcolor='#f0f2f6')
+)
 st.plotly_chart(fig2, use_container_width=True)
 
 # Dynamic insights for Chart 2
 disc_by_cat = df_cat[df_cat['discount_percent'] > 0].groupby('category')['discount_percent'].median().sort_values(ascending=False)
 if len(disc_by_cat) > 0:
     high_disc_cat = disc_by_cat.index[0]
-    st.info(f"""
-**📊 Insight:**
-- **Phụ thuộc KM nhiều nhất:** {high_disc_cat} (median discount: {disc_by_cat[high_disc_cat]:.1f}%)
-- Category có box càng cao = càng phụ thuộc vào khuyến mãi để bán hàng
-- **Khuyến nghị:** Xem xét giảm discount dần cho các category có median > 30%
-""")
+    st.markdown(f"""
+    <div style="background-color: #e0f2fe; padding: 1rem; border-radius: 0.5rem; border-left: 4px solid #3b82f6; color: #1e3a8a; margin-bottom: 1rem;">
+        <strong><i class='fa-solid fa-lightbulb' style='color: #f59e0b; margin-right: 5px;'></i> Insight:</strong>
+        <ul style="margin-top: 0.5rem; margin-bottom: 0; padding-left: 1.5rem;">
+            <li><strong>Phụ thuộc KM nhiều nhất:</strong> {high_disc_cat} (median discount: {disc_by_cat[high_disc_cat]:.1f}%)</li>
+            <li>Category có box càng cao = càng phụ thuộc vào khuyến mãi để bán hàng</li>
+            <li><strong>Khuyến nghị:</strong> Xem xét giảm discount dần cho các category có median > 30%</li>
+        </ul>
+    </div>
+    """, unsafe_allow_html=True)
 
 st.divider()
 
 # ==================== OUTPUT 3: Scatter discount_percent vs bought ====================
-st.header("3️⃣ Scatter: Discount Percent vs Bought")
+st.markdown('<h2><span style="background: #3b82f6; color: white; padding: 4px 10px; border-radius: 6px; margin-right: 10px;">3</span> Scatter: Tỷ lệ giảm giá vs Lượng mua</h2>', unsafe_allow_html=True)
 st.markdown("*Giảm giá có kéo cầu không?*")
 
 col1, col2 = st.columns(2)
@@ -158,10 +188,19 @@ with col1:
         x='discount_percent',
         y='bought',
         title="Toàn bộ sản phẩm",
-        labels={'discount_percent': 'Discount (%)', 'bought': 'Bought'},
-        opacity=0.6
+        labels={'discount_percent': 'Discount (%)', 'bought': 'Bought (Log Scale)'},
+        opacity=0.6,
+        log_y=True
     )
-    fig3a.update_layout(height=400)
+    fig3a.update_layout(
+        height=400,
+        title_x=0.5,
+        title_xanchor='center',
+        plot_bgcolor='white',
+        paper_bgcolor='white',
+        xaxis=dict(showgrid=True, gridcolor='#f0f2f6'),
+        yaxis=dict(showgrid=True, gridcolor='#f0f2f6')
+    )
     st.plotly_chart(fig3a, use_container_width=True)
 
 with col2:
@@ -172,25 +211,40 @@ with col2:
         y='bought',
         color='category',
         title="Theo Top Categories",
-        labels={'discount_percent': 'Discount (%)', 'bought': 'Bought'},
-        opacity=0.7
+        labels={'discount_percent': 'Discount (%)', 'bought': 'Bought (Log Scale)'},
+        opacity=0.7,
+        log_y=True
     )
-    fig3b.update_layout(height=400)
+    fig3b.update_layout(
+        height=400,
+        title_x=0.5,
+        title_xanchor='center',
+        plot_bgcolor='white',
+        paper_bgcolor='white',
+        xaxis=dict(showgrid=True, gridcolor='#f0f2f6'),
+        yaxis=dict(showgrid=True, gridcolor='#f0f2f6')
+    )
     st.plotly_chart(fig3b, use_container_width=True)
 
 # Insight for Chart 3
 corr_disc_bought = df_analysis['discount_percent'].corr(df_analysis['bought'])
 if corr_disc_bought > 0.1:
-    st.success(f"**📊 Insight:** Tương quan dương ({corr_disc_bought:.2f}) → Giảm giá **có** giúp tăng sales")
+    st.markdown(f"""<div style="background-color: #dcfce7; padding: 1rem; border-radius: 0.5rem; border-left: 4px solid #22c55e; color: #14532d; margin-bottom: 1rem;">
+        <strong><i class='fa-solid fa-lightbulb' style='color: #f59e0b; margin-right: 5px;'></i> Insight:</strong> Tương quan dương ({corr_disc_bought:.2f}) → Giảm giá <strong>có</strong> giúp tăng sales
+    </div>""", unsafe_allow_html=True)
 elif corr_disc_bought < -0.1:
-    st.warning(f"**📊 Insight:** Tương quan âm ({corr_disc_bought:.2f}) → Giảm giá **không** hiệu quả")
+    st.markdown(f"""<div style="background-color: #fef9c3; padding: 1rem; border-radius: 0.5rem; border-left: 4px solid #eab308; color: #713f12; margin-bottom: 1rem;">
+        <strong><i class='fa-solid fa-lightbulb' style='color: #f59e0b; margin-right: 5px;'></i> Insight:</strong> Tương quan âm ({corr_disc_bought:.2f}) → Giảm giá <strong>không</strong> hiệu quả
+    </div>""", unsafe_allow_html=True)
 else:
-    st.info(f"**📊 Insight:** Tương quan yếu ({corr_disc_bought:.2f}) → Discount có tác động **không rõ ràng** lên sales")
+    st.markdown(f"""<div style="background-color: #e0f2fe; padding: 1rem; border-radius: 0.5rem; border-left: 4px solid #3b82f6; color: #1e3a8a; margin-bottom: 1rem;">
+        <strong><i class='fa-solid fa-lightbulb' style='color: #f59e0b; margin-right: 5px;'></i> Insight:</strong> Tương quan yếu ({corr_disc_bought:.2f}) → Discount có tác động <strong>không rõ ràng</strong> lên sales
+    </div>""", unsafe_allow_html=True)
 
 st.divider()
 
 # ==================== OUTPUT 4: Scatter final_price vs bought ====================
-st.header("4️⃣ Scatter: Final Price vs Bought")
+st.markdown('<h2><span style="background: #3b82f6; color: white; padding: 4px 10px; border-radius: 6px; margin-right: 10px;">4</span> Scatter: Giá bán vs Lượng mua</h2>', unsafe_allow_html=True)
 st.markdown("*Sản phẩm giá cao có bán được không? (định vị)*")
 
 fig4 = px.scatter(
@@ -200,23 +254,36 @@ fig4 = px.scatter(
     color='category',
     hover_data=['product_name', 'brand_name', 'discount_percent'],
     title="Mối quan hệ Giá - Doanh số",
-    labels={'final_price': 'Final Price (VNĐ)', 'bought': 'Bought'},
-    opacity=0.6
+    labels={'final_price': 'Final Price (VNĐ)', 'bought': 'Bought (Log Scale)'},
+    opacity=0.6,
+    log_y=True
 )
-fig4.update_layout(height=500)
+fig4.update_layout(
+    height=500,
+    title_x=0.5,
+    title_xanchor='center',
+    plot_bgcolor='white',
+    paper_bgcolor='white',
+    xaxis=dict(showgrid=True, gridcolor='#f0f2f6'),
+    yaxis=dict(showgrid=True, gridcolor='#f0f2f6')
+)
 st.plotly_chart(fig4, use_container_width=True)
 
 # Insight for Chart 4
 corr_price_bought = df_analysis['final_price'].corr(df_analysis['bought'])
 if corr_price_bought < -0.1:
-    st.info(f"**📊 Insight:** Tương quan âm ({corr_price_bought:.2f}) → Sản phẩm giá cao **bán ít hơn** (bình thường)")
+    st.markdown(f"""<div style="background-color: #e0f2fe; padding: 1rem; border-radius: 0.5rem; border-left: 4px solid #3b82f6; color: #1e3a8a; margin-bottom: 1rem;">
+        <strong><i class='fa-solid fa-lightbulb' style='color: #f59e0b; margin-right: 5px;'></i> Insight:</strong> Tương quan âm ({corr_price_bought:.2f}) → Sản phẩm giá cao <strong>bán ít hơn</strong> (bình thường)
+    </div>""", unsafe_allow_html=True)
 else:
-    st.success(f"**📊 Insight:** Tương quan ({corr_price_bought:.2f}) → Giá cao vẫn bán được! Có thể định vị **premium**")
+    st.markdown(f"""<div style="background-color: #dcfce7; padding: 1rem; border-radius: 0.5rem; border-left: 4px solid #22c55e; color: #14532d; margin-bottom: 1rem;">
+        <strong><i class='fa-solid fa-lightbulb' style='color: #f59e0b; margin-right: 5px;'></i> Insight:</strong> Tương quan ({corr_price_bought:.2f}) → Giá cao vẫn bán được! Có thể định vị <strong>premium</strong>
+    </div>""", unsafe_allow_html=True)
 
 st.divider()
 
 # ==================== OUTPUT 5: Scatter stock_rate vs bought ====================
-st.header("5️⃣ Scatter: Stock Rate vs Bought")
+st.markdown('<h2><span style="background: #3b82f6; color: white; padding: 4px 10px; border-radius: 6px; margin-right: 10px;">5</span> Scatter: Tỷ lệ tồn kho vs Lượng mua</h2>', unsafe_allow_html=True)
 st.markdown("*Bought có bị 'kẹt' vì thiếu hàng không?*")
 
 df_stock = df_analysis[df_analysis['stock_rate'] > 0].copy()
@@ -228,28 +295,43 @@ fig5 = px.scatter(
     color='category',
     hover_data=['product_name', 'brand_name'],
     title="Mối quan hệ Tồn kho - Doanh số",
-    labels={'stock_rate': 'Stock Rate (tỷ lệ có hàng)', 'bought': 'Bought'},
-    opacity=0.6
+    labels={'stock_rate': 'Stock Rate (tỷ lệ có hàng)', 'bought': 'Bought (Log Scale)'},
+    opacity=0.6,
+    log_y=True
 )
-fig5.update_layout(height=500)
+fig5.update_layout(
+    height=500,
+    title_x=0.5,
+    title_xanchor='center',
+    plot_bgcolor='white',
+    paper_bgcolor='white',
+    xaxis=dict(showgrid=True, gridcolor='#f0f2f6'),
+    yaxis=dict(showgrid=True, gridcolor='#f0f2f6')
+)
 st.plotly_chart(fig5, use_container_width=True)
 
 # Insight for Chart 5
 corr_stock_bought = df_stock['stock_rate'].corr(df_stock['bought'])
 low_stock_count = len(df_stock[df_stock['stock_rate'] < 0.3])
 if corr_stock_bought > 0.1:
-    st.warning(f"""
-**📊 Insight:** Tương quan dương ({corr_stock_bought:.2f}) → Stock rate thấp = Bought thấp
-- **{low_stock_count} sản phẩm** có stock_rate < 30% → Có thể đang mất doanh số vì thiếu hàng!
-""")
+    st.markdown(f"""
+    <div style="background-color: #fef9c3; padding: 1rem; border-radius: 0.5rem; border-left: 4px solid #eab308; color: #713f12; margin-bottom: 1rem;">
+        <strong><i class='fa-solid fa-lightbulb' style='color: #f59e0b; margin-right: 5px;'></i> Insight:</strong> Tương quan dương ({corr_stock_bought:.2f}) → Stock rate thấp = Bought thấp
+        <ul style="margin-top: 0.5rem; margin-bottom: 0; padding-left: 1.5rem;">
+            <li><strong>{low_stock_count} sản phẩm</strong> có stock_rate < 30% → Có thể đang mất doanh số vì thiếu hàng!</li>
+        </ul>
+    </div>
+    """, unsafe_allow_html=True)
 else:
-    st.info(f"**📊 Insight:** Tương quan ({corr_stock_bought:.2f}) → Stock không phải bottleneck chính")
+    st.markdown(f"""<div style="background-color: #e0f2fe; padding: 1rem; border-radius: 0.5rem; border-left: 4px solid #3b82f6; color: #1e3a8a; margin-bottom: 1rem;">
+    <strong><i class='fa-solid fa-lightbulb' style='color: #f59e0b; margin-right: 5px;'></i> Insight:</strong> Tương quan ({corr_stock_bought:.2f}) → Stock không phải bottleneck chính
+    </div>""", unsafe_allow_html=True)
 
 st.divider()
 
 
 # ==================== OUTPUT 6: Bảng 3 nhóm sản phẩm ====================
-st.header("6️⃣ Phân Nhóm Sản Phẩm Chiến Lược (Top 20 mỗi nhóm)")
+st.markdown('<h2><span style="background: #3b82f6; color: white; padding: 4px 10px; border-radius: 6px; margin-right: 10px;">6</span> Phân Nhóm Sản Phẩm Chiến Lược (Top 20 mỗi nhóm)</h2>', unsafe_allow_html=True)
 
 # Nhóm A: bought cao, discount thấp (ứng viên tăng giá nhẹ)
 st.subheader("🔥 Nhóm A: Bán chạy + Discount thấp → **Ứng viên TĂNG GIÁ NHẸ**")
@@ -288,7 +370,7 @@ st.caption(f"💡 **Insight:** {len(group_c)} sản phẩm bán chạy nhưng t�
 st.divider()
 
 # ==================== SUMMARY STATS ====================
-st.header("📊 Tổng Kết")
+st.header("Tổng Kết")
 
 col1, col2, col3 = st.columns(3)
 
@@ -296,4 +378,4 @@ col1.metric("Nhóm A (Tăng giá)", len(group_a), "sản phẩm")
 col2.metric("Nhóm B (Cắt KM)", len(group_b), "sản phẩm")
 col3.metric("Nhóm C (Ưu tiên stock)", len(group_c), "sản phẩm")
 
-st.success("✅ EDA hoàn tất với 6 outputs chính!")
+st.success("EDA hoàn tất với 6 outputs chính!")
