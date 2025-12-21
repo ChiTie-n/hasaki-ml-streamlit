@@ -80,6 +80,27 @@ def build_product_feature_table(
         .merge(inv_agg, on="product_id", how="left")
     )
     
+    # --- 4.1 Data Quality Fix: Some brands have prices 100x too high ---
+    # Add brand names to this list if they have the same issue
+    BRANDS_WITH_PRICE_ERROR = ['lamthaocosmetics']  # Thêm brand vào đây nếu cần
+    
+    if 'brand_name' in df.columns:
+        for brand in BRANDS_WITH_PRICE_ERROR:
+            brand_mask = df['brand_name'].str.lower().str.contains(brand.lower(), na=False)
+            price_cols = ['avg_final_price', 'median_final_price']
+            for col in price_cols:
+                if col in df.columns:
+                    df.loc[brand_mask, col] = df.loc[brand_mask, col] / 100
+    
+    # --- 4.2 Fix all remaining high prices (user confirmed all products < 5M VND) ---
+    MAX_PRICE = 5_000_000
+    if 'avg_final_price' in df.columns:
+        high_mask = df['avg_final_price'] > MAX_PRICE
+        df.loc[high_mask, 'avg_final_price'] = df.loc[high_mask, 'avg_final_price'] / 100
+    if 'median_final_price' in df.columns:
+        high_mask = df['median_final_price'] > MAX_PRICE
+        df.loc[high_mask, 'median_final_price'] = df.loc[high_mask, 'median_final_price'] / 100
+
     # --- 5. Create binary indicator for missing reviews ---
     df["has_review"] = (~df["rating_mean"].isna()).astype(int)
     

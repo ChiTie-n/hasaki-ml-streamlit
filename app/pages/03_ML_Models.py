@@ -245,7 +245,7 @@ with tab1:
                 # PRIORITY 3: Best seller low discount
                 elif avg_bought > overall_bought * 1.3 and avg_discount < overall_discount:
                     cluster_type = "🔥 BEST SELLER (Low Discount)"
-                    strategy = "CÓ THỂ TĂNG GIÁ 5-15%"
+                    strategy = "CÓ ROOM TĂNG GIÁ 5-15%"
                     color = "success"
                     detail = f"Bán chạy mà không cần giảm giá nhiều. Có pricing power."
                 # PRIORITY 4: Discount dependent
@@ -299,7 +299,7 @@ with tab1:
             col1, col2, col3 = st.columns(3)
             
             with col1:
-                st.markdown("**🔼 Candidates TĂNG GIÁ**")
+                st.markdown("**🔼 Candidates CÓ ROOM TĂNG GIÁ**")
                 inc_df = action_candidates['increase_price'].head(20)
                 if len(inc_df) > 0:
                     st.dataframe(inc_df[display_cols], use_container_width=True, hide_index=True)
@@ -435,7 +435,7 @@ with tab2:
                     strategies.append("Duy trì discount khi cần push sales")
                 elif disc < overall_discount and bought > overall_bought:
                     segment_types.append("💎 Ít nhạy cảm (Pricing Power)")
-                    strategies.append("CÓ THỂ TĂNG GIÁ 5-15%")
+                    strategies.append("CÓ ROOM TĂNG GIÁ 5-15%")
                 elif disc > overall_discount and bought < overall_bought:
                     segment_types.append("⚠️ Discount không hiệu quả")
                     strategies.append("GIẢM DISCOUNT, đổi chiến lược")
@@ -474,7 +474,7 @@ with tab2:
                     show_cols = ['product_name', 'brand_name', 'avg_final_price', 
                                 'avg_discount_percent', 'avg_bought']
                     st.dataframe(pricing_power_seg[show_cols].head(15), use_container_width=True, hide_index=True)
-                    st.caption("💡 Bán tốt mà không cần discount nhiều → Có thể tăng giá")
+                    st.caption("💡 Bán tốt mà không cần discount nhiều → Có room tăng giá")
             
             with col2:
                 st.warning(f"**⚠️ Discount Không Hiệu Quả: {len(ineffective_seg)} sản phẩm**")
@@ -605,7 +605,7 @@ with tab3:
                     st.dataframe(neg_display, use_container_width=True, hide_index=True)
             
             with col2:
-                st.markdown("**💎 CÓ THỂ TĂNG GIÁ (High Positive Ratio)**")
+                st.markdown("**💎 CÓ ROOM TĂNG GIÁ (High Positive Ratio)**")
                 pos_products = products_enough.nlargest(15, 'positive_ratio')
                 if len(pos_products) > 0:
                     show_cols = ['product_name', 'brand_name', 'avg_final_price', 
@@ -864,6 +864,10 @@ with tab4:
         product_enough = product_agg[product_agg['total'] >= min_reviews].copy()
         st.info(f"📊 {len(product_enough)} products có ≥{min_reviews} reviews")
         
+        # SAVE to session_state for Tab 5 Decision Dashboard
+        st.session_state['ml_sentiment_results'] = product_enough.copy()
+        st.success("💾 Kết quả đã được lưu để dùng trong Tab 5 Decision Dashboard!")
+        
 
         st.divider()
         st.subheader("💰 Pricing Action Lists")
@@ -919,7 +923,7 @@ with tab4:
                 st.info("Không có sản phẩm phù hợp")
         
         with col2:
-            st.markdown(f"**⬆️ 3. TĂNG GIÁ (pos_ratio ≥ {pos_threshold:.0%})**")
+            st.markdown(f"**⬆️ 3. CÓ ROOM TĂNG GIÁ (pos_ratio ≥ {pos_threshold:.0%})**")
             if len(increase_price) > 0:
                 inc_display = increase_price[display_cols].copy()
                 inc_display['pos_ratio'] = inc_display['pos_ratio'].apply(lambda x: f"{x:.1%}" if pd.notna(x) else "N/A")
@@ -1052,55 +1056,85 @@ with tab5:
             
             df_products['dd_signal'] = df_products.apply(get_dd_signal, axis=1)
             
-            # 4. Rule-based Sentiment signals
-            st.info("💬 Đang phân tích sentiment (Rule-Based)...")
-            if 'product_id' in reviews_raw.columns and 'review_content' in reviews_raw.columns:
-                reviews_sent = reviews_raw.copy()
-                reviews_sent['clean_text'] = reviews_sent['review_content'].fillna('').apply(clean_review_text)
-                reviews_sent['rule_sentiment'] = reviews_sent['clean_text'].apply(
-                    lambda x: classify_price_sentiment_rule_based(x)
+            # 4. Sentiment signals (prefer ML over Rule-Based)
+            if 'ml_sentiment_results' in st.session_state:
+                st.info("🤖 Đang dùng ML Sentiment từ Tab 4 (cached)...")
+                ml_results = st.session_state['ml_sentiment_results']
+                
+                # Merge ML sentiment results
+                df_products = df_products.merge(
+                    ml_results[['product_id', 'pos_ratio', 'neg_ratio']], 
+                    on='product_id', 
+                    how='left'
                 )
+                df_products['pos_ratio'] = df_products['pos_ratio'].fillna(0.5)
+                df_products['neg_ratio'] = df_products['neg_ratio'].fillna(0.5)
                 
-                # Aggregate per product
-                rule_agg = reviews_sent.groupby('product_id').apply(
-                    lambda x: pd.Series({
-                        'rule_pos': (x['rule_sentiment'] == 'Positive').sum(),
-                        'rule_neg': (x['rule_sentiment'] == 'Negative').sum(),
-                        'rule_total': len(x[x['rule_sentiment'].isin(['Positive', 'Negative'])])
-                    })
-                ).reset_index()
-                
-                rule_agg['rule_pos_ratio'] = rule_agg['rule_pos'] / rule_agg['rule_total'].replace(0, 1)
-                rule_agg['rule_neg_ratio'] = rule_agg['rule_neg'] / rule_agg['rule_total'].replace(0, 1)
-                
-                df_products = df_products.merge(rule_agg[['product_id', 'rule_pos_ratio', 'rule_neg_ratio']], 
-                                                on='product_id', how='left')
-                df_products['rule_pos_ratio'] = df_products['rule_pos_ratio'].fillna(0.5)
-                df_products['rule_neg_ratio'] = df_products['rule_neg_ratio'].fillna(0.5)
-                
-                def get_rule_signal(row):
-                    if row['rule_pos_ratio'] > 0.6:
-                        return 1  # Positive → can increase
-                    elif row['rule_neg_ratio'] > 0.5:
-                        return -1  # Negative → should decrease
+                def get_sentiment_signal(row):
+                    if row['pos_ratio'] > 0.6:
+                        return 2  # Strong positive → can increase
+                    elif row['pos_ratio'] > 0.4:
+                        return 1  # Mild positive
+                    elif row['neg_ratio'] > 0.5:
+                        return -2  # Strong negative → should decrease
+                    elif row['neg_ratio'] > 0.3:
+                        return -1  # Mild negative
                     return 0
                 
-                df_products['rule_signal'] = df_products.apply(get_rule_signal, axis=1)
+                df_products['sentiment_signal'] = df_products.apply(get_sentiment_signal, axis=1)
+                sentiment_source = "ML"
             else:
-                df_products['rule_signal'] = 0
+                st.warning("⚠️ Chưa có ML Sentiment. Đang dùng Rule-Based (chạy Tab 4 để có kết quả tốt hơn)...")
+                if 'product_id' in reviews_raw.columns and 'review_content' in reviews_raw.columns:
+                    reviews_sent = reviews_raw.copy()
+                    reviews_sent['clean_text'] = reviews_sent['review_content'].fillna('').apply(clean_review_text)
+                    reviews_sent['rule_sentiment'] = reviews_sent['clean_text'].apply(
+                        lambda x: classify_price_sentiment_rule_based(x)
+                    )
+                    
+                    rule_agg = reviews_sent.groupby('product_id').apply(
+                        lambda x: pd.Series({
+                            'rule_pos': (x['rule_sentiment'] == 'Positive').sum(),
+                            'rule_neg': (x['rule_sentiment'] == 'Negative').sum(),
+                            'rule_total': len(x[x['rule_sentiment'].isin(['Positive', 'Negative'])])
+                        })
+                    ).reset_index()
+                    
+                    rule_agg['pos_ratio'] = rule_agg['rule_pos'] / rule_agg['rule_total'].replace(0, 1)
+                    rule_agg['neg_ratio'] = rule_agg['rule_neg'] / rule_agg['rule_total'].replace(0, 1)
+                    
+                    df_products = df_products.merge(rule_agg[['product_id', 'pos_ratio', 'neg_ratio']], 
+                                                    on='product_id', how='left')
+                    df_products['pos_ratio'] = df_products['pos_ratio'].fillna(0.5)
+                    df_products['neg_ratio'] = df_products['neg_ratio'].fillna(0.5)
+                    
+                    def get_sentiment_signal(row):
+                        if row['pos_ratio'] > 0.6:
+                            return 1
+                        elif row['neg_ratio'] > 0.5:
+                            return -1
+                        return 0
+                    
+                    df_products['sentiment_signal'] = df_products.apply(get_sentiment_signal, axis=1)
+                else:
+                    df_products['sentiment_signal'] = 0
+                sentiment_source = "Rule-Based"
             
             # 5. Compute final score
             st.info("🎯 Đang tính điểm tổng hợp...")
+            # Weight ML Sentiment higher than Rule-Based
+            sentiment_weight = 2.0 if sentiment_source == 'ML' else 1.5
             df_products['total_score'] = (
                 df_products['km_signal'] * 2 +  # K-Means weight: 2
                 df_products['dd_signal'] * 1.5 +  # Discount-Demand weight: 1.5
-                df_products['rule_signal'] * 1.5  # Sentiment weight: 1.5
+                df_products['sentiment_signal'] * sentiment_weight  # Sentiment weight
             )
+            st.info(f"📊 Sentiment source: **{sentiment_source}** (weight: {sentiment_weight})")
             
             # 6. Generate final recommendation
             def get_final_recommendation(score):
                 if score >= 3:
-                    return "🟢 TĂNG GIÁ"
+                    return "🟢 CÓ ROOM TĂNG GIÁ"
                 elif score >= 1.5:
                     return "🟡 CÓ THỂ TĂNG NHẸ"
                 elif score <= -2:
@@ -1114,7 +1148,7 @@ with tab5:
             
             # Calculate confidence
             def get_confidence(row):
-                signals = [row['km_signal'], row['dd_signal'], row.get('rule_signal', 0)]
+                signals = [row['km_signal'], row['dd_signal'], row.get('sentiment_signal', 0)]
                 # Count how many signals agree on direction
                 pos_count = sum(1 for s in signals if s > 0)
                 neg_count = sum(1 for s in signals if s < 0)
@@ -1175,7 +1209,7 @@ with tab5:
         col1, col2, col3 = st.columns(3)
         
         with col1:
-            st.markdown("**🟢 Top 10 TĂNG GIÁ**")
+            st.markdown("**🟢 Top 10 CÓ ROOM TĂNG GIÁ**")
             top_increase = df_decision[df_decision['recommendation'].str.contains('TĂNG')].nlargest(10, 'total_score')
             if len(top_increase) > 0:
                 for _, row in top_increase.iterrows():
