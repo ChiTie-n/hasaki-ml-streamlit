@@ -1,6 +1,4 @@
-"""
-EDA - Exploratory Data Analysis (6 outputs tối giản)
-"""
+
 import streamlit as st
 import pandas as pd
 import plotly.express as px
@@ -368,14 +366,3 @@ st.dataframe(group_c, use_container_width=True, hide_index=True)
 st.caption(f"💡 **Insight:** {len(group_c)} sản phẩm bán chạy nhưng tồn kho thấp → Cần restock trước khi chạy promotion để tận dụng tối đa")
 
 st.divider()
-
-# ==================== SUMMARY STATS ====================
-st.header("Tổng Kết")
-
-col1, col2, col3 = st.columns(3)
-
-col1.metric("Nhóm A (Tăng giá)", len(group_a), "sản phẩm")
-col2.metric("Nhóm B (Cắt KM)", len(group_b), "sản phẩm")
-col3.metric("Nhóm C (Ưu tiên stock)", len(group_c), "sản phẩm")
-
-st.success("EDA hoàn tất với 6 outputs chính!")

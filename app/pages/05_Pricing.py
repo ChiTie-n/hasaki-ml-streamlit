@@ -293,13 +293,6 @@ with tab1:
 # --------------------------------------------------------------------------------
 with tab2:
     st.header("Dự đoán giá tối ưu (ML Regression)")
-    st.markdown("""
-    *Sử dụng Machine Learning để dự đoán tác động của thay đổi giá lên demand.*
-    
-    **Mô hình:** RandomForest Regressor  
-    **Input:** price, discount, rating, stock  
-    **Output:** Predicted bought (demand)
-    """)
     
     st.divider()
     

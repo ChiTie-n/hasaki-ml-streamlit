@@ -41,11 +41,6 @@ tab1, tab2 = st.tabs(["K-Means Clustering", "Discount–Demand Segmentation"])
 # --------------------------------------------------------------------------------
 with tab1:
     st.header("K-Means Product Clustering")
-    st.markdown("""
-    *Mô hình K-Means được dùng để phân cụm sản phẩm dựa trên vector đặc trưng (giá, discount, bought, rating, tồn kho...).  
-    Quy trình: chuẩn hoá dữ liệu (StandardScaler) → thử nhiều K và chọn K tốt nhất bằng Silhouette (tuỳ chọn) → huấn luyện K-Means với K cuối cùng → giảm chiều bằng PCA(2D) để trực quan hoá và phân tích profile từng cụm.  
-    Từ thống kê theo cụm (mean/median), hệ thống suy ra nhóm hành vi và gợi ý chiến lược giá; đồng thời ưu tiên ràng buộc tồn kho bằng ngưỡng stockout_rate để tránh khuyến mãi khi nguy cơ thiếu hàng cao.*
-    """)
     
     st.divider()
     
@@ -326,16 +321,7 @@ with tab1:
 # --------------------------------------------------------------------------------
 with tab2:
     st.header("🏷️ Phân nhóm theo khuyến mãi và sức mua")
-    st.markdown("""
-    *Phân nhóm sản phẩm để mô tả mối quan hệ giữa mức giảm giá và nhu cầu mua (lượt mua).*
-
-    **Logic thực hiện:** Chuẩn hoá lượt mua theo phân khúc giá để so sánh công bằng, sau đó dùng K-Means để gom nhóm theo 2 trục:
-    mức giảm giá và lượt mua đã chuẩn hoá.
-    **Cách đọc kết quả:**
-    - **Giảm giá cao + mua cao:** nhạy cảm giá
-    - **Giảm giá thấp + mua cao:** có dư địa tăng giá
-    - **Giảm giá cao + mua thấp:** giảm giá không hiệu quả
-    """)
+    
     
     st.divider()
     

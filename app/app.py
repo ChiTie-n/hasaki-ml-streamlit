@@ -10,4 +10,4 @@ st.set_page_config(
 )
 
 # Auto navigate to Welcome page
-st.switch_page("pages/00_Welcome.py")
+st.switch_page("pages/01_Dashboard.py")

@@ -37,16 +37,6 @@ tab1, tab2 = st.tabs(["Sentiment (Rule-Based)", "Sentiment (ML Model)"])
 # --------------------------------------------------------------------------------
 with tab1:
     st.header("💬 Price Sentiment Analysis (Rule-Based)")
-    st.markdown("""
-    *Nguyên lý hoạt động (Rule-Based Price Sentiment):*  
-    Mô hình phân tích cảm xúc về **giá** dựa trên **rule + khớp từ khoá** trong nội dung review.  
-    Quy trình gồm: 
-    (1) quét review để phát hiện các câu có nhắc đến giá bằng tập keyword;  
-    (2) gán nhãn cảm xúc về giá (tích cực/tiêu cực) theo nhóm keyword và xét ngữ cảnh phủ định để tránh hiểu sai;  
-    (3) tổng hợp theo sản phẩm/nhãn hàng bằng số lượt và **tỷ lệ** tích cực/tiêu cực để so sánh công bằng;  
-    (4) lọc nhiễu bằng ngưỡng tối thiểu số lần nhắc, đồng thời tính **tỷ lệ nhắc đến giá** (price mention rate) để đo mức độ khách hàng quan tâm tới giá.  
-    Kết quả đầu ra là các chỉ số và bảng xếp hạng giúp nhận diện sản phẩm bị phàn nàn về giá hoặc có lợi thế về cảm nhận giá.
-    """)
  
     
     st.divider()
@@ -202,12 +192,6 @@ with tab1:
 # --------------------------------------------------------------------------------
 with tab2:
     st.header("ML Sentiment Analysis (Pre-trained)")
-    st.markdown("""
-    *Nguyên lý hoạt động (ML Sentiment – Pre-trained):*  
-    Module này sử dụng **mô hình Transformer đã huấn luyện sẵn** để phân loại cảm xúc trực tiếp trên văn bản review (không cần tự train lại).  
-    Văn bản đầu vào được **tokenize** theo đúng chuẩn của mô hình, sau đó đưa qua mạng để suy ra **xác suất các nhãn sentiment** (ví dụ: tích cực / trung tính / tiêu cực).  
-    Kết quả được gán nhãn theo xác suất cao nhất và có thể tổng hợp theo sản phẩm/nhãn hàng (tỷ lệ positive/neutral/negative) để đánh giá mức độ hài lòng của khách hàng.
-    """)
 
     st.markdown("""
     **Mô hình sử dụng:** `cardiffnlp/twitter-xlm-roberta-base-sentiment`  
