@@ -38,14 +38,16 @@ tab1, tab2 = st.tabs(["Sentiment (Rule-Based)", "Sentiment (ML Model)"])
 with tab1:
     st.header("💬 Price Sentiment Analysis (Rule-Based)")
     st.markdown("""
-    *Phân tích cảm xúc khách hàng về giá từ reviews bằng keyword matching.*
-    
-    **Cải tiến:**
-    - ✅ Xử lý negation: "không đắt" ≠ negative
-    - ✅ Ratio-based ranking thay vì count
-    - ✅ Threshold tối thiểu mentions
-    - ✅ Price mention rate metric
+    *Nguyên lý hoạt động (Rule-Based Price Sentiment):*  
+    Mô hình phân tích cảm xúc về **giá** dựa trên **rule + khớp từ khoá** trong nội dung review.  
+    Quy trình gồm: 
+    (1) quét review để phát hiện các câu có nhắc đến giá bằng tập keyword;  
+    (2) gán nhãn cảm xúc về giá (tích cực/tiêu cực) theo nhóm keyword và xét ngữ cảnh phủ định để tránh hiểu sai;  
+    (3) tổng hợp theo sản phẩm/nhãn hàng bằng số lượt và **tỷ lệ** tích cực/tiêu cực để so sánh công bằng;  
+    (4) lọc nhiễu bằng ngưỡng tối thiểu số lần nhắc, đồng thời tính **tỷ lệ nhắc đến giá** (price mention rate) để đo mức độ khách hàng quan tâm tới giá.  
+    Kết quả đầu ra là các chỉ số và bảng xếp hạng giúp nhận diện sản phẩm bị phàn nàn về giá hoặc có lợi thế về cảm nhận giá.
     """)
+ 
     
     st.divider()
     
@@ -64,9 +66,9 @@ with tab1:
     # Controls
     col1, col2 = st.columns(2)
     with col1:
-        min_mentions = st.slider("Minimum price mentions", 3, 20, 5, key="t3_min_mentions")
+        min_mentions = st.slider("Số bình luận nhắc đến giá tối thiếu", 3, 20, 5, key="t3_min_mentions")
     with col2:
-        run_sent = st.button("🚀 Phân Tích Price Sentiment", type="primary", key="t3_run")
+        run_sent = st.button("Phân Tích Price Sentiment", type="primary", key="t3_run")
     
     # Show keywords
     with st.expander("🔑 Từ khóa sử dụng"):
@@ -117,7 +119,7 @@ with tab1:
             
             st.divider()
             
-            st.subheader("📊 Tổng Quan")
+            st.subheader("Tổng Quan")
             
             sentiment_counts = reviews_df['price_sentiment'].value_counts()
             
@@ -125,7 +127,7 @@ with tab1:
             col1.metric("😊 Positive", sentiment_counts.get('Positive', 0))
             col2.metric("😞 Negative", sentiment_counts.get('Negative', 0))
             col3.metric("😐 Neutral", sentiment_counts.get('Neutral', 0))
-            col4.metric("📝 No Mention", sentiment_counts.get('No_Mention', 0))
+            col4.metric("No Mention", sentiment_counts.get('No_Mention', 0))
             
             # Pie chart
             price_mentions = reviews_df[reviews_df['price_sentiment'] != 'No_Mention']
@@ -140,14 +142,14 @@ with tab1:
             
             st.divider()
             
-            st.subheader("📝 Sản Phẩm Cần Hành Động (Ratio-Based)")
+            st.subheader("Sản Phẩm Cần Hành Động (Ratio-Based)")
             
             # Filter products with enough mentions
             products_enough = product_sentiment[
                 product_sentiment['price_mentions_count'] >= min_mentions
             ].copy()
             
-            st.info(f"📊 {len(products_enough)} sản phẩm có ≥{min_mentions} price mentions")
+            st.info(f"{len(products_enough)} sản phẩm có ≥{min_mentions} price mentions")
             
             col1, col2 = st.columns(2)
             
@@ -177,7 +179,7 @@ with tab1:
             
             st.divider()
             
-            st.subheader("📄 Sample Reviews")
+            st.subheader("Sample Reviews")
             
             tab_pos, tab_neg = st.tabs(["😊 Positive", "😞 Negative"])
             
@@ -199,16 +201,21 @@ with tab1:
 # TAB 2: ML SENTIMENT (COPIED EXACTLY)
 # --------------------------------------------------------------------------------
 with tab2:
-    st.header("🤖 ML Sentiment Analysis (Pre-trained)")
+    st.header("ML Sentiment Analysis (Pre-trained)")
     st.markdown("""
-    *Phân loại sentiment bằng model đã train sẵn cho tiếng Việt - KHÔNG cần train!*
-    
-    **Model:** `cardiffnlp/twitter-xlm-roberta-base-sentiment` (hỗ trợ 8 ngôn ngữ kể cả Việt)
+    *Nguyên lý hoạt động (ML Sentiment – Pre-trained):*  
+    Module này sử dụng **mô hình Transformer đã huấn luyện sẵn** để phân loại cảm xúc trực tiếp trên văn bản review (không cần tự train lại).  
+    Văn bản đầu vào được **tokenize** theo đúng chuẩn của mô hình, sau đó đưa qua mạng để suy ra **xác suất các nhãn sentiment** (ví dụ: tích cực / trung tính / tiêu cực).  
+    Kết quả được gán nhãn theo xác suất cao nhất và có thể tổng hợp theo sản phẩm/nhãn hàng (tỷ lệ positive/neutral/negative) để đánh giá mức độ hài lòng của khách hàng.
     """)
+
+    st.markdown("""
+    **Mô hình sử dụng:** `cardiffnlp/twitter-xlm-roberta-base-sentiment`  
+    """)
+
     
     st.divider()
     
-    st.subheader("📦 Dependencies Status")
     
     torch_available = False
     transformers_available = False
@@ -227,17 +234,6 @@ with tab2:
     except ImportError:
         transformers_version = "Not installed"
     
-    col1, col2 = st.columns(2)
-    with col1:
-        if torch_available:
-            st.success(f"✅ PyTorch: {torch_version}")
-        else:
-            st.error("❌ PyTorch: Not installed")
-    with col2:
-        if transformers_available:
-            st.success(f"✅ Transformers: {transformers_version}")
-        else:
-            st.error("❌ Transformers: Not installed")
     
     if not (torch_available and transformers_available):
         st.error("""
@@ -249,10 +245,7 @@ with tab2:
         ```
         """)
         st.stop()
-    
-    st.divider()
-    
-    st.subheader("📥 Load Pre-trained Model")
+    st.subheader("Load Pre-trained Model")
     
     MODEL_NAME = "cardiffnlp/twitter-xlm-roberta-base-sentiment"
     
@@ -269,13 +262,6 @@ with tab2:
         with st.spinner("Đang load model (lần đầu sẽ download ~1GB)..."):
             tokenizer, model = load_pretrained_sentiment()
         st.success(f"✅ Model loaded: `{MODEL_NAME}`")
-        st.info("""
-        **Về model này:**
-        - XLM-RoBERTa fine-tuned trên 198M tweets
-        - Hỗ trợ 8 ngôn ngữ: AR, EN, FR, DE, HI, IT, SP, PT (và hoạt động tốt với Việt)
-        - 3 classes: Negative (0), Neutral (1), Positive (2)
-        - **KHÔNG cần train thêm!**
-        """)
         model_loaded = True
     except Exception as e:
         st.error(f"❌ Lỗi load model: {e}")
@@ -284,7 +270,7 @@ with tab2:
     
     st.divider()
     
-    st.subheader("🔮 Predict Sentiment")
+    st.subheader("Phân loại cảm xúc")
     
     col1, col2, col3 = st.columns(3)
     with col1:
@@ -294,7 +280,7 @@ with tab2:
     with col3:
         pos_threshold = st.slider("Pos ratio threshold", 0.3, 0.8, 0.5, key="pt_pos_thresh")
     
-    predict_button = st.button("🚀 Predict All Reviews", type="primary", key="pt_predict")
+    predict_button = st.button("Phân loại cảm xúc tất cả review", type="primary", key="pt_predict")
     
     # PERSISTENCE
     if predict_button or ('ml_predictions' in st.session_state and 'ml_sentiment_results' in st.session_state):
@@ -404,10 +390,10 @@ with tab2:
             predict_reviews = st.session_state['ml_predictions']
             product_enough = st.session_state['ml_sentiment_results']
             
-            st.success(f"✅ Predicted {len(predict_reviews)} reviews!")
+            st.success(f"✅ Phân loại cảm xúc {len(predict_reviews)} reviews!")
             
             st.divider()
-            st.subheader("📊 Overall Sentiment Distribution")
+            st.subheader("Overall Sentiment Distribution")
             
             sent_counts = predict_reviews['ml_sentiment'].value_counts()
             
@@ -432,8 +418,8 @@ with tab2:
             st.divider()
             st.subheader("📦 Product-Level Sentiment")
             
-            st.info(f"📊 {len(product_enough)} products có ≥{min_reviews} reviews")
-            st.success("💾 Kết quả đã được lưu để dùng trong Decision Dashboard!")
+            st.info(f"{len(product_enough)} products có ≥{min_reviews} reviews")
+            st.success("Kết quả đã được lưu để dùng trong Decision Dashboard!")
             
             st.divider()
             st.subheader("💰 Pricing Action Lists")
@@ -519,11 +505,11 @@ with tab2:
     
     st.divider()
     
-    st.subheader("✍️ Thử Predict")
+    st.subheader("Test phân loại")
     
     user_text = st.text_area("Nhập review:", "Sản phẩm tốt, giá hợp lý, đáng mua", key="pt_user_input")
     
-    if st.button("🔮 Predict", key="pt_single_predict"):
+    if st.button("Phân loại", key="pt_single_predict"):
         if model_loaded:
             import torch
             

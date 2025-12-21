@@ -21,7 +21,7 @@ from ml_utils import load_ml_data, clean_review_text, classify_price_sentiment_r
 st.set_page_config(page_title="Pricing Strategy", page_icon="💰", layout="wide")
 inject_page_css()
 
-st.title("💰 Pricing & Decisioning")
+st.title("Tổng hợp khuyến nghị về chiến lược giá")
 
 try:
     df_feat, feature_cols, reviews_raw = load_ml_data()
@@ -36,7 +36,7 @@ tab1, tab2 = st.tabs(["Decision Dashboard", "Price Simulator (ML)"])
 # TAB 1: DECISION DASHBOARD (COPIED EXACTLY)
 # --------------------------------------------------------------------------------
 with tab1:
-    st.header("🎯 Decision Dashboard")
+    st.header("Tổng hợp khuyến nghị về chiến lược giá")
     st.markdown("""
     *Tổng hợp signals từ Segmentation & Sentiment để ra quyết định.*
     """) 
@@ -54,7 +54,7 @@ with tab1:
                 df_products = df_feat.copy()
                 
                 # 2. K-Means signals
-                st.info("📊 Đang chạy K-Means...")
+                st.info("Đang chạy K-Means...")
                 from sklearn.preprocessing import StandardScaler
                 from sklearn.cluster import KMeans
                 
@@ -89,7 +89,7 @@ with tab1:
                 df_products['km_signal'] = df_products.apply(get_kmeans_signal, axis=1)
                 
                 # 3. Discount-Demand Segmentation signals
-                st.info("💰 Đang phân loại Discount-Demand...")
+                st.info("Đang phân loại Discount-Demand...")
                 discount_median = df_products['avg_discount_percent'].median()
                 bought_median = df_products['avg_bought'].median()
                 
@@ -107,7 +107,7 @@ with tab1:
                 
                 # 4. Sentiment signals (prefer ML over Rule-Based)
                 if 'ml_sentiment_results' in st.session_state:
-                    st.info("🤖 Đang dùng ML Sentiment từ Tab 4 (cached)...")
+                    st.info("Đang dùng ML Sentiment từ Tab 4 (cached)...")
                     ml_results = st.session_state['ml_sentiment_results']
                     
                     # Merge ML sentiment results
@@ -170,7 +170,7 @@ with tab1:
                     sentiment_source = "Rule-Based"
                 
                 # 5. Compute final score
-                st.info("🎯 Đang tính điểm tổng hợp...")
+                st.info("Đang tính điểm tổng hợp...")
                 # Weight ML Sentiment higher than Rule-Based
                 sentiment_weight = 2.0 if sentiment_source == 'ML' else 1.5
                 df_products['total_score'] = (
@@ -178,7 +178,7 @@ with tab1:
                     df_products['dd_signal'] * 1.5 +  # Discount-Demand weight: 1.5
                     df_products['sentiment_signal'] * sentiment_weight  # Sentiment weight
                 )
-                st.info(f"📊 Sentiment source: **{sentiment_source}** (weight: {sentiment_weight})")
+                st.info(f"Sentiment source: **{sentiment_source}** (weight: {sentiment_weight})")
                 
                 # 6. Generate final recommendation
                 def get_final_recommendation(score):
@@ -218,7 +218,7 @@ with tab1:
         st.divider()
         
         # Summary metrics
-        st.subheader("📊 Tổng Quan")
+        st.subheader("Tổng Quan")
         rec_counts = df_decision['recommendation'].value_counts()
         
         cols = st.columns(5)
@@ -228,7 +228,7 @@ with tab1:
         st.divider()
         
         # Show by recommendation
-        st.subheader("📋 Chi Tiết Theo Khuyến Nghị")
+        st.subheader("Chi Tiết Theo Khuyến Nghị")
         
         recommendation_filter = st.selectbox(
             "Lọc theo khuyến nghị:",
@@ -253,7 +253,7 @@ with tab1:
         st.divider()
         
         # Top Actions
-        st.subheader("🎯 Top Actions")
+        st.subheader("Top Actions")
         
         col1, col2, col3 = st.columns(3)
         
@@ -285,12 +285,6 @@ with tab1:
                 st.info("Không có")
         
         st.divider()
-        st.info("""
-        **📖 Cách đọc kết quả:**
-        - **Total Score**: Điểm tổng hợp từ 3 modules (K-Means, Discount-Demand, Sentiment)
-        - **Confidence**: HIGH = 2+ signals đồng thuận, MEDIUM = 1 signal, LOW = không rõ
-        - **Recommendation**: Quyết định cuối cùng dựa trên total score
-        """)
     else:
         st.info("👆 Nhấn nút **Chạy Phân Tích Tổng Hợp** để bắt đầu.")
 
@@ -298,7 +292,7 @@ with tab1:
 # TAB 2: PRICE SIMULATOR (ML REGRESSION) (COPIED EXACTLY)
 # --------------------------------------------------------------------------------
 with tab2:
-    st.header("🔮 Price Simulator (ML Regression)")
+    st.header("Dự đoán giá tối ưu (ML Regression)")
     st.markdown("""
     *Sử dụng Machine Learning để dự đoán tác động của thay đổi giá lên demand.*
     
@@ -310,15 +304,8 @@ with tab2:
     st.divider()
     
     # Train model
-    st.subheader("📊 1. Train Demand Prediction Model")
+    st.subheader("Train Demand Prediction Model")
     
-    st.markdown("""
-    **Cải tiến:**
-    - Log transform target (handle skewed data)
-    - Loại bỏ outliers (IQR method)
-    - Sử dụng GradientBoosting (tốt hơn RandomForest cho tabular data)
-    - Thêm features: price_per_rating, discount_effectiveness
-    """)
     
     # Model selection
     model_options = {
@@ -338,7 +325,7 @@ with tab2:
     model_exists = 'demand_model' in st.session_state
     
     # Button to train (run)
-    run_train = st.button("🚀 Train Model", type="primary")
+    run_train = st.button("Train Model", type="primary")
     
     # LOGIC: Run if button clicked OR (results exist AND we want to display metrics)
     # But for training, typically we only re-train if requested. 
@@ -467,7 +454,7 @@ with tab2:
             st.error("❌ Model quality: POOR - Không nên dùng để ra quyết định")
 
         # Feature importance
-        st.subheader("📈 Feature Importance")
+        st.subheader("Chỉ số quan trọng")
         
         # Check if model has feature_importances_ (GBM, RF) or coef_ (Linear)
         if hasattr(model, 'feature_importances_'):
@@ -490,13 +477,21 @@ with tab2:
                 orientation='h',
                 title="Các yếu tố ảnh hưởng đến Demand"
             )
+            fig_imp.update_layout(
+                title_x=0.5,
+                title_xanchor='center',
+                plot_bgcolor='white',
+                paper_bgcolor='white',
+                xaxis=dict(showgrid=True, gridcolor='#f0f2f6'),
+                yaxis=dict(showgrid=False)
+            )
             st.plotly_chart(fig_imp, use_container_width=True)
     
     st.divider()
     
     # Simulation
     if 'demand_model' in st.session_state:
-        st.subheader("🎮 2. Simulate Price Changes")
+        st.subheader("Simulate Price Changes")
         
         model = st.session_state['demand_model']
         features = st.session_state['model_features']
@@ -516,7 +511,7 @@ with tab2:
                 min_value=-20, max_value=20, value=5, step=1
             )
             
-            if st.button("🔮 Simulate Discount Change"):
+            if st.button("Ước tính thay đổi"):
                 scaler = st.session_state.get('demand_scaler', None)
                 use_log = st.session_state.get('use_log_transform', False)
                 
@@ -585,7 +580,7 @@ with tab2:
                 min_value=-30, max_value=30, value=-10, step=5
             )
             
-            if st.button("🔮 Simulate Price Change"):
+            if st.button("Ước tính thay đổi giá"):
                 scaler = st.session_state.get('demand_scaler', None)
                 use_log = st.session_state.get('use_log_transform', False)
                 
@@ -704,7 +699,7 @@ with tab2:
                 value=min(max(int(product_data['avg_discount_percent']), min_discount_in_data), max_discount_in_data)
             )
             
-            if st.button("🔮 Predict Demand"):
+            if st.button("Ước tính thay đổi"):
                 # Get scaler if available
                 scaler = st.session_state.get('demand_scaler', None)
                 use_log = st.session_state.get('use_log_transform', False)
@@ -763,11 +758,6 @@ with tab2:
                     st.warning(f"⚠️ Thay đổi giá này có thể **GIẢM revenue** {abs(rev_delta_pct):.1f}%")
         
         st.divider()
-        st.info("""
-        **⚠️ Lưu ý quan trọng:**
-        - Model này dự đoán dựa trên **correlation**, không phải **causation**
-        - Kết quả chỉ mang tính **tham khảo**, cần A/B testing thực tế để validate
-        - R² thấp (<0.5) nghĩa là model chưa capture được hết factors ảnh hưởng demand
-        """)
+
     else:
         st.info("👆 Train model trước khi simulation.")
