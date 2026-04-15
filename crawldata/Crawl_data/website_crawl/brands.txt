@@ -1,0 +1,21 @@
+# Brand Filter Configuration
+# Danh sách các hãng cần crawl (mỗi dòng một hãng)
+# Để trống hoặc comment tất cả để crawl tất cả hãng
+
+Cerave
+Cocoon
+Cetaphil
+La Roche-Posay
+Paula's Choice
+St.Ives
+Bioderma
+Innisfree
+Simple
+Garnier
+Rosette
+SVR
+Huxley
+Caryophy
+Obagi
+
+

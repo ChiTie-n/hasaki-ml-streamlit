@@ -1,0 +1,28 @@
+name: Daily Crawler
+
+on:
+  schedule:
+    - cron: '30 19 * * *'
+  workflow_dispatch:
+
+jobs:
+  crawl:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - uses: astral-sh/setup-uv@v4
+        with:
+          enable-cache: true
+      
+      - name: Install dependencies
+        run: uv sync --frozen
+      
+      - name: Run crawler
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+          SUPABASE_SCHEMA: raw
+        run: uv run main_pipeline.py
